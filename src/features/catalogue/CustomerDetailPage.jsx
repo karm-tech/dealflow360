@@ -1,11 +1,14 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { FileText, Receipt, Repeat, ShoppingCart } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import {
   Badge,
   Card,
   EmptyState,
   ErrorState,
+  SmartButton,
+  SmartButtons,
   Spinner,
   StatusPill,
   Table,
@@ -17,7 +20,11 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
-import { QUOTATION_STATUS_LABELS, QUOTATION_STATUS_TONES } from "../../lib/constants";
+import {
+  OPEN_QUOTATION_STATUSES,
+  QUOTATION_STATUS_LABELS,
+  QUOTATION_STATUS_TONES,
+} from "../../lib/constants";
 
 function Detail({ label, children }) {
   return (
@@ -42,11 +49,42 @@ export function CustomerDetailPage() {
     return <ErrorState message={errorMessage(customer.error)} onRetry={customer.refetch} />;
   }
 
-  const { customer: record, quotations } = customer.data;
+  const { customer: record, quotations, counts } = customer.data;
 
   return (
     <div className="animate-fadeUp">
-      <PageHeader title={record.name} subtitle={record.email} />
+      <PageHeader
+        title={record.name}
+        subtitle={record.email}
+        actions={
+          <SmartButtons>
+            <SmartButton
+              count={counts.open}
+              label="Open"
+              icon={FileText}
+              to={`/quotations?customerId=${record.id}&status=${OPEN_QUOTATION_STATUSES}`}
+            />
+            <SmartButton
+              count={counts.orders}
+              label="Orders"
+              icon={ShoppingCart}
+              to={`/quotations?customerId=${record.id}&status=CONFIRMED`}
+            />
+            <SmartButton
+              count={counts.invoices}
+              label="Invoices"
+              icon={Receipt}
+              to={`/billing?customerId=${record.id}`}
+            />
+            <SmartButton
+              count={counts.subscriptions}
+              label="Subscriptions"
+              icon={Repeat}
+              to={`/billing?view=subscriptions&customerId=${record.id}`}
+            />
+          </SmartButtons>
+        }
+      />
 
       <Card className="mb-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,15 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { INTERNAL_ROLES, ROLES, FULFILMENT_STATUS } from "../lib/constants.js";
+import { INTERNAL_ROLES, OPS_ROLES, ROLES, FULFILMENT_STATUS } from "../lib/constants.js";
 import {
   canSuggest,
   consolidateBackorder,
   coverableBackorders,
+  fulfilmentRecord,
   fulfilmentView,
   overrideFulfilment,
   receiveStock,
   suggestFulfilment,
+  validateFulfilment,
 } from "../lib/fulfilmentService.js";
 
 export const fulfilmentRouter = Router();
@@ -32,10 +34,18 @@ const receiptSchema = z.object({
   qty: z.number().int().min(1, "Receive at least one unit"),
 });
 
-// Everything still to go out, across every order.
-fulfilmentRouter.get("/", async (req, res) => {
-  const parcels = await req.db.fulfilment.findMany({
-    where: { status: { in: [FULFILMENT_STATUS.SUGGESTED, FULFILMENT_STATUS.ACCEPTED, FULFILMENT_STATUS.BACKORDER] } },
+// Everything still to go out, across every order. One query for both the table
+// and the pager, so stepping through records follows what the user is looking at.
+async function outstandingParcels(db, quotationId, user) {
+  const where = {
+    status: { in: [FULFILMENT_STATUS.SUGGESTED, FULFILMENT_STATUS.ACCEPTED, FULFILMENT_STATUS.BACKORDER] },
+  };
+  if (quotationId) where.quotationId = Number(quotationId);
+  // A rep sees the shipments for their own deals and nobody else's.
+  if (user?.role === ROLES.SALES_REP) where.quotation = { repId: user.id };
+
+  return db.fulfilment.findMany({
+    where,
     include: {
       warehouse: true,
       quotation: { include: { customer: { select: { name: true } } } },
@@ -43,9 +53,14 @@ fulfilmentRouter.get("/", async (req, res) => {
     },
     orderBy: [{ status: "asc" }, { estDeliveryDate: "asc" }],
   });
+}
+
+fulfilmentRouter.get("/", async (req, res) => {
+  const parcels = await outstandingParcels(req.db, req.query.quotationId, req.user);
 
   const rows = parcels.map((parcel) => ({
     id: parcel.id,
+    reference: parcel.reference,
     status: parcel.status,
     warehouse: parcel.warehouse.name,
     quotationId: parcel.quotationId,
@@ -69,6 +84,22 @@ fulfilmentRouter.get("/", async (req, res) => {
   res.json({ parcels: rows, consolidatableIds: coverable.map((row) => row.id) });
 });
 
+fulfilmentRouter.get("/:id/neighbours", async (req, res) => {
+  const parcels = await outstandingParcels(req.db, req.query.quotationId, req.user);
+  const index = parcels.findIndex((parcel) => parcel.id === Number(req.params.id));
+
+  if (index === -1) {
+    return res.json({ prevId: null, nextId: null, position: null, total: parcels.length });
+  }
+
+  res.json({
+    prevId: index > 0 ? parcels[index - 1].id : null,
+    nextId: index < parcels.length - 1 ? parcels[index + 1].id : null,
+    position: index + 1,
+    total: parcels.length,
+  });
+});
+
 // The split for one order, plus whether any backorder can now be filled.
 fulfilmentRouter.get("/quotation/:id", async (req, res) => {
   const view = await fulfilmentView(req.db, Number(req.params.id));
@@ -85,7 +116,7 @@ fulfilmentRouter.get("/quotation/:id", async (req, res) => {
   res.json({ fulfilment: view });
 });
 
-fulfilmentRouter.post("/quotation/:id/suggest", async (req, res) => {
+fulfilmentRouter.post("/quotation/:id/suggest", requireRole(...OPS_ROLES), async (req, res) => {
   const id = Number(req.params.id);
   const quotation = await req.db.quotation.findUnique({ where: { id }, select: { status: true } });
   if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
@@ -98,7 +129,7 @@ fulfilmentRouter.post("/quotation/:id/suggest", async (req, res) => {
   res.json({ fulfilment: await fulfilmentView(req.db, id) });
 });
 
-fulfilmentRouter.post("/quotation/:id/override", async (req, res) => {
+fulfilmentRouter.post("/quotation/:id/override", requireRole(...OPS_ROLES), async (req, res) => {
   const parsed = overrideSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
@@ -126,7 +157,7 @@ fulfilmentRouter.post("/quotation/:id/override", async (req, res) => {
   res.json({ fulfilment: await fulfilmentView(req.db, id) });
 });
 
-fulfilmentRouter.post("/:id/consolidate", async (req, res) => {
+fulfilmentRouter.post("/:id/consolidate", requireRole(...OPS_ROLES), async (req, res) => {
   const result = await consolidateBackorder(req.db, req.dbMode, Number(req.params.id), req.user.id);
   if (result.error) return res.status(409).json({ error: result.error });
 
@@ -192,4 +223,25 @@ fulfilmentRouter.get("/stock", async (req, res) => {
         .sort((a, b) => a.product.localeCompare(b.product)),
     })),
   });
+});
+
+// Marking a parcel on its way, and then arrived.
+fulfilmentRouter.post("/:id/validate", requireRole(...OPS_ROLES), async (req, res) => {
+  const result = await validateFulfilment(req.db, Number(req.params.id), req.user.id);
+  if (result.error) return res.status(409).json({ error: result.error });
+
+  res.json({ status: result.status });
+});
+
+// One shipment as its own record. Declared after the fixed paths above so they
+// are not read as an id.
+fulfilmentRouter.get("/:id", async (req, res) => {
+  const record = await fulfilmentRecord(req.db, Number(req.params.id));
+  if (!record) return res.status(404).json({ error: "That shipment no longer exists" });
+
+  if (req.user.role === ROLES.SALES_REP && record.source.repId !== req.user.id) {
+    return res.status(403).json({ error: "That shipment belongs to another rep's order" });
+  }
+
+  res.json({ fulfilment: record });
 });

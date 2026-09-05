@@ -8,4 +8,5 @@ export { Badge, StatusPill } from "./Badge";
 export { Spinner, ErrorState, EmptyState } from "./States";
 export { Modal } from "./Modal";
 export { RecordPicker } from "./RecordPicker";
+export { SmartButton, SmartButtons } from "./SmartButtons";
 export { ToastProvider, useToast } from "./Toast";

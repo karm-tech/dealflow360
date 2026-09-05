@@ -14,6 +14,7 @@ import { resolveUnitPrice } from "../lib/pricing.js";
 import { suggestUpsells, addDismissed } from "../lib/upsell.js";
 import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
 import { executeFulfilment, suggestFulfilment } from "../lib/fulfilmentService.js";
+import { billConfirmedOrder, billingCounts } from "../lib/billingService.js";
 
 export const quotationsRouter = Router();
 
@@ -181,6 +182,7 @@ async function respondWithDetail(req, res, quotationId, outcome = null) {
   // An open draft shows what confirming would do, using the same routing the
   // confirm runs, so the preview cannot drift from the decision.
   const routing = isEditable(quotation.status) ? await previewRouting(req.db, quotation) : null;
+  const billing = await billingCounts(req.db, { quotationId });
 
   res.json({
     quotation: quotationDetail(quotation, {
@@ -188,6 +190,7 @@ async function respondWithDetail(req, res, quotationId, outcome = null) {
       activityLogs: history,
       suggestions,
       routing,
+      billing,
     }),
     ...(outcome || {}),
   });
@@ -207,11 +210,17 @@ const SORTS = {
 // One ordered list for both the table and the pager, so stepping through
 // records follows exactly what the user is looking at.
 async function listQuotations(db, query) {
-  const { status, customerId, repId, search, sort } = query;
+  const { status, customerId, productId, repId, search, sort } = query;
 
   const where = {};
-  if (status) where.status = status;
+  // Comma separated so a smart button can ask for a group of stages at once.
+  if (status) {
+    const wanted = String(status).split(",").filter(Boolean);
+    where.status = wanted.length > 1 ? { in: wanted } : wanted[0];
+  }
   if (customerId) where.customerId = Number(customerId);
+  // Quotations containing a given product, for the smart button on its record.
+  if (productId) where.lines = { some: { productId: Number(productId) } };
   if (repId) where.repId = Number(repId);
   if (search) {
     where.OR = [
@@ -667,6 +676,10 @@ quotationsRouter.post("/:id/accept", async (req, res) => {
   const confirmed = { ...quotation, status: QUOTATION_STATUS.CONFIRMED };
   const fulfilment = await executeFulfilment(req.db, req.dbMode, confirmed, req.user.id);
   if (fulfilment.error) return res.status(409).json({ error: fulfilment.error });
+
+  // Agreeing the order also raises its opening invoice and opens a
+  // subscription for each recurring line.
+  await billConfirmedOrder(req.db, req.dbMode, confirmed, req.user.id);
 
   const approvers = await req.db.user.findMany({
     where: { id: { in: quotation.approvalSteps.map((step) => step.actorId).filter(Boolean) } },

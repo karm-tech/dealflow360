@@ -1,13 +1,26 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { INTERNAL_ROLES } from "../lib/constants.js";
+import { INTERNAL_ROLES, QUOTATION_STATUS } from "../lib/constants.js";
 import { resolveUnitPrice } from "../lib/pricing.js";
 import { quotationSummary, QUOTATION_INCLUDE } from "../lib/quotationView.js";
+import { billingCounts } from "../lib/billingService.js";
 
 export const catalogueRouter = Router();
 
 // Cost and margin appear on these responses, so the whole router is staff only.
 catalogueRouter.use(requireAuth, requireRole(...INTERNAL_ROLES));
+
+// A smart button counts live records. A cancelled deal is dead history: it stays
+// reachable through the list's stage filter but never inflates a count.
+const OPEN_STATUSES = [
+  QUOTATION_STATUS.DRAFT,
+  QUOTATION_STATUS.PENDING_APPROVAL,
+  QUOTATION_STATUS.APPROVED,
+  QUOTATION_STATUS.SENT,
+  QUOTATION_STATUS.UNDER_NEGOTIATION,
+];
+
+const LIVE_STATUSES = [...OPEN_STATUSES, QUOTATION_STATUS.CONFIRMED];
 
 function marginPct(price, cost) {
   if (!price) return 0;
@@ -78,7 +91,12 @@ catalogueRouter.get("/products/:id", async (req, res) => {
 
   if (!product) return res.status(404).json({ error: "That product no longer exists" });
 
+  const quotationCount = await req.db.quotation.count({
+    where: { status: { in: LIVE_STATUSES }, lines: { some: { productId: product.id } } },
+  });
+
   res.json({
+    counts: { quotations: quotationCount, warehouses: product.stocks.length },
     product: {
       id: product.id,
       name: product.name,
@@ -161,7 +179,21 @@ catalogueRouter.get("/customers/:id", async (req, res) => {
     take: 20,
   });
 
+  // The list above is capped, so the buttons count in the database instead.
+  // Open and orders are disjoint, so the two numbers never cover the same deal.
+  const [openCount, orderCount] = await Promise.all([
+    req.db.quotation.count({
+      where: { customerId: customer.id, status: { in: OPEN_STATUSES } },
+    }),
+    req.db.quotation.count({
+      where: { customerId: customer.id, status: QUOTATION_STATUS.CONFIRMED },
+    }),
+  ]);
+
+  const billing = await billingCounts(req.db, { customerId: customer.id });
+
   res.json({
+    counts: { open: openCount, orders: orderCount, ...billing },
     customer: {
       id: customer.id,
       name: customer.name,

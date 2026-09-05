@@ -11,13 +11,12 @@ import { OutboxPage } from "./features/admin/OutboxPage";
 import { ApprovalsPage } from "./features/approvals/ApprovalsPage";
 import { RealtimeProvider } from "./app/RealtimeProvider";
 import { NoAccessPage, NotFoundPage } from "./features/misc/NoAccessPage";
-import {
-  BackendPage,
-  BillingPage,
-  DashboardPage,
-  PortalPage,
-} from "./features/placeholders/Pages";
+import { BackendPage, DashboardPage, PortalPage } from "./features/placeholders/Pages";
+import { BillingPage } from "./features/billing/BillingPage";
+import { InvoiceRecordPage } from "./features/billing/InvoiceRecordPage";
+import { SubscriptionRecordPage } from "./features/billing/SubscriptionRecordPage";
 import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage";
+import { FulfilmentRecordPage } from "./features/fulfilment/FulfilmentRecordPage";
 import { QuotationsListPage } from "./features/quotations/QuotationsListPage";
 import { QuotationBuilderPage } from "./features/quotations/QuotationBuilderPage";
 import { PipelinePage } from "./features/quotations/PipelinePage";
@@ -84,10 +83,36 @@ export function App() {
           }
         />
         <Route
+          path="/fulfilment/:id"
+          element={
+            <RequireRole roles={[ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE]}>
+              <FulfilmentRecordPage />
+            </RequireRole>
+          }
+        />
+        {/* A rep reaches billing for their own orders; the server scopes the
+            rows and refuses anyone else's. Changing any of it is finance work. */}
+        <Route
           path="/billing"
           element={
-            <RequireRole roles={[ROLES.ADMIN, ROLES.FINANCE]}>
+            <RequireRole roles={[ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE]}>
               <BillingPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/billing/invoices/:id"
+          element={
+            <RequireRole roles={[ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE]}>
+              <InvoiceRecordPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/billing/subscriptions/:id"
+          element={
+            <RequireRole roles={[ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE]}>
+              <SubscriptionRecordPage />
             </RequireRole>
           }
         />

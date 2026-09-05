@@ -10,7 +10,7 @@ server/prisma/dev.db*
 .DS_Store
 *.log
 
-# private hackathon docs - never commit
+# local working notes - never commit
 CLAUDE.md
 PLAN.md
 CODE_MAP.md

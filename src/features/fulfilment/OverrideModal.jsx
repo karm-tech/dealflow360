@@ -3,9 +3,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Field, Input, Modal, Spinner } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 
-// Lets a rep set the quantity per warehouse by hand. What is typed here is
-// checked against real stock on the server before anything is written.
-export function OverrideModal({ open, onClose, quotation, onSaved }) {
+// Sets the quantity per warehouse by hand. What is typed here is checked
+// against real stock on the server before anything is written.
+export function OverrideModal({ open, onClose, quotationId, lines, onSaved }) {
   const [amounts, setAmounts] = useState({});
   const [error, setError] = useState("");
 
@@ -15,7 +15,7 @@ export function OverrideModal({ open, onClose, quotation, onSaved }) {
     enabled: open,
   });
 
-  const stockableLines = (quotation.lines || []).filter((line) => line.isStockable);
+  const stockableLines = lines || [];
 
   useEffect(() => {
     if (open) {
@@ -26,7 +26,7 @@ export function OverrideModal({ open, onClose, quotation, onSaved }) {
 
   const save = useMutation({
     mutationFn: async (allocations) =>
-      api.post(`/fulfilment/quotation/${quotation.id}/override`, { allocations }),
+      api.post(`/fulfilment/quotation/${quotationId}/override`, { allocations }),
     onSuccess: () => {
       onSaved();
       onClose();

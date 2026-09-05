@@ -17,6 +17,9 @@ export const QUOTATION_INCLUDE = {
     include: { actor: { select: { id: true, name: true } } },
     orderBy: { sequence: "asc" },
   },
+  // Counted rather than loaded: the form only shows how many shipments exist.
+  // A returned parcel is dead history, so it is not counted as a shipment.
+  _count: { select: { fulfilments: { where: { status: { not: "RETURNED" } } } } },
 };
 
 function isInternal(role) {
@@ -71,7 +74,10 @@ function lineView(line, figures) {
   };
 }
 
-export function quotationDetail(quotation, { role, activityLogs = [], suggestions = [], routing = null } = {}) {
+export function quotationDetail(
+  quotation,
+  { role, activityLogs = [], suggestions = [], routing = null, billing = null } = {},
+) {
   const totals = quotationTotals(quotation.lines);
   const internal = isInternal(role);
 
@@ -116,6 +122,14 @@ export function quotationDetail(quotation, { role, activityLogs = [], suggestion
   };
 
   if (internal) {
+    // Sent with the record so the form's related-record buttons need no extra
+    // request of their own.
+    view.counts = {
+      shipments: quotation._count ? quotation._count.fulfilments : 0,
+      approvals: (quotation.approvalSteps || []).length,
+      invoices: billing ? billing.invoices : 0,
+      subscriptions: billing ? billing.subscriptions : 0,
+    };
     view.totals.marginPct = totals.marginPct;
     view.totals.annualCost = totals.annualCost;
     view.suggestions = suggestions;

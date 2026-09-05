@@ -345,7 +345,11 @@ model ActivityLog {
 // ---------------------------------------------------------------------------
 
 model Fulfilment {
-  id          Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  // A shipment is its own document, so it carries its own reference.
+  reference String @unique
+
   quotationId Int
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   warehouseId Int
@@ -374,7 +378,12 @@ model FulfilmentLine {
 // ---------------------------------------------------------------------------
 
 model Subscription {
-  id              Int           @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  // A subscription outlives the order that created it, so it carries its own
+  // reference rather than being found through the quotation.
+  reference String @unique
+
   quotationLineId Int           @unique
   quotationLine   QuotationLine @relation(fields: [quotationLineId], references: [id], onDelete: Cascade)
   customerId      Int
@@ -463,6 +472,7 @@ model Payment {
 
 model CreditNote {
   id        Int      @id @default(autoincrement())
+  number    String   @unique
   invoiceId Int
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount    Float
@@ -523,6 +533,9 @@ model Settings {
 
   // Fulfilment
   defaultShippingCost Float @default(250)
+
+  // Days from issue to the date an invoice falls due.
+  paymentTermsDays Int @default(30)
 
   // Suggestions below this margin are never shown, so the panel cannot talk a
   // rep into a product that damages the deal.

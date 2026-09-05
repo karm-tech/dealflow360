@@ -12,13 +12,15 @@ import {
   APPROVAL_STATUS,
   USER_STATUS,
 } from "../src/lib/constants.js";
-import { suggestFulfilment } from "../src/lib/fulfilmentService.js";
+import { executeFulfilment, suggestFulfilment } from "../src/lib/fulfilmentService.js";
+import { billConfirmedOrder, refreshInvoiceStatus } from "../src/lib/billingService.js";
 
 // Which database this run writes to:
 //   npm run seed       -> demo.db  full sample data
 //   npm run seed:live  -> dev.db   master data only
 const isLive = process.argv.includes("--live");
 const db = isLive ? liveDb : demoDb;
+const mode = isLive ? "live" : "demo";
 
 // Every demo account uses this password. Shown in the README.
 const DEMO_PASSWORD = "demo1234";
@@ -33,6 +35,12 @@ function daysAgo(days) {
 
 function daysFromNow(days) {
   const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
 }
@@ -705,7 +713,120 @@ async function createQuotations(customers, users, products) {
     ],
   });
 
-  return { acme, waiting, splitOrder, backorderOrder };
+  // 10) A mixed deal the customer has agreed to. Two one-time lines, an AMC and
+  //     a printer on rent, so the same order both ships and bills monthly. The
+  //     recurring lines start part way through this month, which is what makes
+  //     the first period a short one. Left approved here; confirming it is what
+  //     raises the billing.
+  const mixedOrder = await createQuotation({
+    number: "DF-Q-1008",
+    customer: customers["Acme Corp"],
+    rep: karan,
+    status: QUOTATION_STATUS.APPROVED,
+    activityAt: daysAgo(5),
+    extra: {
+      requestedDeliveryDate: daysFromNow(9),
+      notes: "Ten docks, onsite setup, AMC per seat and two printers on rent.",
+    },
+    lines: [
+      line(products["HW-DOCK-01"], 10, products["HW-DOCK-01"].salesPrice, 6, BILLING_TYPE.ONE_TIME),
+      line(products["SV-SETUP"], 1, products["SV-SETUP"].salesPrice, 8, BILLING_TYPE.ONE_TIME),
+      line(products["SB-AMC"], 10, 800, 5, BILLING_TYPE.RECURRING, "MONTHLY", daysAgo(2)),
+      line(products["HW-PRN-RENT"], 2, 2000, 0, BILLING_TYPE.RECURRING, "MONTHLY", daysAgo(2)),
+    ],
+  });
+
+  return { acme, waiting, splitOrder, backorderOrder, mixedOrder };
+}
+
+// --- billing ----------------------------------------------------------------
+
+// Agreeing an order is what takes the stock and raises the billing, so the demo
+// runs the same steps the accept action runs rather than writing invoices and
+// subscriptions by hand.
+async function confirmOrder(orderId, userId, confirmedAt) {
+  await suggestFulfilment(db, orderId);
+
+  await db.quotation.update({
+    where: { id: orderId },
+    data: { status: QUOTATION_STATUS.CONFIRMED, confirmedAt },
+  });
+
+  const order = await db.quotation.findUnique({
+    where: { id: orderId },
+    include: {
+      customer: true,
+      rep: true,
+      lines: { include: { product: true, plan: true } },
+    },
+  });
+
+  await executeFulfilment(db, mode, order, userId);
+  await billConfirmedOrder(db, mode, order, userId);
+  await dateInvoicesFrom(order.id, confirmedAt);
+
+  return order;
+}
+
+// An invoice is raised with today's date. For an order agreed in the past that
+// would put every due date in the future, so the invoice is dated from the day
+// the order was actually confirmed.
+async function dateInvoicesFrom(quotationId, issueDate) {
+  const settings = await db.settings.findUnique({ where: { id: 1 } });
+  const termsDays = settings?.paymentTermsDays ?? 30;
+
+  await db.invoice.updateMany({
+    where: { quotationId },
+    data: { issueDate, dueDate: addDays(issueDate, termsDays) },
+  });
+}
+
+// How each of the older orders was settled. Between them the order book holds
+// one of every state: unpaid past its due date, paid late, part paid, and paid.
+//   settle     share of the invoice received
+//   daysToPay  days after the invoice date the money arrived
+const PAST_ORDER_SETTLEMENTS = [
+  { number: "DF-Q-0901", settle: 0, daysToPay: 0 },
+  { number: "DF-Q-0902", settle: 1, daysToPay: 31 },
+  { number: "DF-Q-0903", settle: 0.4, daysToPay: 10 },
+  { number: "DF-Q-0904", settle: 1, daysToPay: 6 },
+];
+
+// Orders confirmed before today already carry their invoices. Payments are
+// written against the invoice and the status is then recalculated, so a seeded
+// invoice reads as paid because money covers it, not because a column says so.
+async function billPastOrders(userId) {
+  for (const row of PAST_ORDER_SETTLEMENTS) {
+    const order = await db.quotation.findUnique({
+      where: { number: row.number },
+      include: {
+        customer: true,
+        rep: true,
+        lines: { include: { product: true, plan: true } },
+      },
+    });
+    if (!order) continue;
+
+    await billConfirmedOrder(db, mode, order, userId);
+
+    const issueDate = order.confirmedAt || order.createdAt;
+    await dateInvoicesFrom(order.id, issueDate);
+
+    const invoice = await db.invoice.findFirst({ where: { quotationId: order.id } });
+    if (!invoice || row.settle === 0) continue;
+
+    await db.payment.create({
+      data: {
+        invoiceId: invoice.id,
+        method: "BANK",
+        amount: Math.round(invoice.total * row.settle * 100) / 100,
+        reference: `NEFT-${invoice.number.replace(/\D/g, "")}`,
+        paidAt: addDays(issueDate, row.daysToPay),
+      },
+    });
+
+    await refreshInvoiceStatus(db, invoice.id);
+  }
 }
 
 // --- run --------------------------------------------------------------------
@@ -758,13 +879,23 @@ async function seedDemo() {
   await createAccessRequests();
 
   console.log("Seeding quotations...");
-  const { waiting, splitOrder, backorderOrder } = await createQuotations(customers, users, products);
+  const { waiting, splitOrder, backorderOrder, mixedOrder } = await createQuotations(
+    customers,
+    users,
+    products,
+  );
 
   // Run the real allocation rather than writing shipments by hand, so the
   // seeded split is the same one the app would produce.
   console.log("Allocating stock for approved orders...");
   await suggestFulfilment(db, splitOrder.id);
   await suggestFulfilment(db, backorderOrder.id);
+
+  // After the suggestions above, so agreeing this order cannot take stock the
+  // two approved splits were worked out from.
+  console.log("Confirming the mixed order and billing the order book...");
+  await confirmOrder(mixedOrder.id, users["rep@dealflow360.test"].id, daysAgo(2));
+  await billPastOrders(users["finance@dealflow360.test"].id);
 
   console.log("Seeding alerts for the waiting approval...");
   await createPendingAlerts(users, waiting);
@@ -819,6 +950,8 @@ async function main() {
     warehouses: await db.warehouse.count(),
     quotations: await db.quotation.count(),
     quotationLines: await db.quotationLine.count(),
+    invoices: await db.invoice.count(),
+    subscriptions: await db.subscription.count(),
   };
 
   console.log("\nSeed complete:");

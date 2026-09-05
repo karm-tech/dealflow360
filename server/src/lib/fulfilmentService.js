@@ -45,6 +45,21 @@ async function shippingCost(db) {
   return settings?.defaultShippingCost ?? 250;
 }
 
+// References run in one sequence across every shipment. Takes the highest in
+// use rather than the newest row, which need not be the highest.
+async function nextReferenceNumber(db) {
+  const rows = await db.fulfilment.findMany({ select: { reference: true } });
+
+  return rows.reduce((max, row) => {
+    const value = Number(String(row.reference || "").replace(/\D/g, ""));
+    return Number.isFinite(value) && value > max ? value : max;
+  }, 0);
+}
+
+export function formatReference(value) {
+  return `DF-S-${String(value).padStart(4, "0")}`;
+}
+
 async function loadForSplit(db, quotationId) {
   return db.quotation.findUnique({ where: { id: quotationId }, include: QUOTATION_FOR_SPLIT });
 }
@@ -71,9 +86,13 @@ export async function suggestFulfilment(db, quotationId) {
   const plan = planSplit(demands, warehouses);
   const described = describePlan(plan, warehouses, await shippingCost(db));
 
+  let sequence = await nextReferenceNumber(db);
+
   for (const parcel of described.parcels) {
+    sequence += 1;
     await db.fulfilment.create({
       data: {
+        reference: formatReference(sequence),
         quotationId,
         warehouseId: parcel.warehouseId,
         status: parcel.status,
@@ -221,13 +240,17 @@ export async function overrideFulfilment(db, quotation, allocations, userId) {
   }
 
   const dates = [];
+  let sequence = await nextReferenceNumber(db);
+
   for (const [warehouseId, entries] of grouped) {
     const warehouse = byWarehouse.get(warehouseId);
     const estDeliveryDate = addDays(new Date(), warehouse.leadTimeDays);
     dates.push(estDeliveryDate);
 
+    sequence += 1;
     await db.fulfilment.create({
       data: {
+        reference: formatReference(sequence),
         quotationId: quotation.id,
         warehouseId,
         status: FULFILMENT_STATUS.SUGGESTED,
@@ -254,8 +277,10 @@ export async function overrideFulfilment(db, quotation, allocations, userId) {
     const estDeliveryDate = addDays(new Date(), replenishmentDays + warehouse.leadTimeDays);
     dates.push(estDeliveryDate);
 
+    sequence += 1;
     await db.fulfilment.create({
       data: {
+        reference: formatReference(sequence),
         quotationId: quotation.id,
         warehouseId: warehouse.id,
         status: FULFILMENT_STATUS.BACKORDER,
@@ -494,4 +519,118 @@ export async function fulfilmentView(db, quotationId) {
     totalShippingCost: view.reduce((sum, parcel) => sum + parcel.shipmentCost, 0),
     isExecuted: view.some((parcel) => parcel.status === FULFILMENT_STATUS.ACCEPTED),
   };
+}
+
+// One shipment as its own document. Deliberately carries nothing commercial:
+// a warehouse operator has no business seeing discounts, margin or approvals.
+export async function fulfilmentRecord(db, id) {
+  const parcel = await db.fulfilment.findUnique({
+    where: { id },
+    include: {
+      warehouse: true,
+      quotation: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          repId: true,
+          requestedDeliveryDate: true,
+          customer: { select: { id: true, name: true } },
+        },
+      },
+      lines: { include: { quotationLine: { include: { product: true } } } },
+    },
+  });
+
+  if (!parcel) return null;
+
+  const coverable = await coverableBackorders(db, null);
+  const isLate =
+    parcel.quotation.requestedDeliveryDate &&
+    parcel.estDeliveryDate &&
+    new Date(parcel.estDeliveryDate) > new Date(parcel.quotation.requestedDeliveryDate);
+
+  const siblings = await db.fulfilment.count({
+    where: { quotationId: parcel.quotationId, status: { not: FULFILMENT_STATUS.RETURNED } },
+  });
+
+  // What the whole order has to ship, so the split can be reworked from here.
+  // Quantities only: nothing priced belongs on a warehouse document.
+  const orderLines = await db.quotationLine.findMany({
+    where: { quotationId: parcel.quotationId, product: { isStockable: true } },
+    include: { product: { select: { id: true, name: true } } },
+    orderBy: { id: "asc" },
+  });
+
+  return {
+    id: parcel.id,
+    reference: parcel.reference,
+    status: parcel.status,
+    isBackorder: parcel.status === FULFILMENT_STATUS.BACKORDER,
+    isManualOverride: parcel.isManualOverride,
+    shipmentCost: parcel.shipmentCost,
+    estDeliveryDate: parcel.estDeliveryDate,
+    requestedDeliveryDate: parcel.quotation.requestedDeliveryDate,
+    isLate: Boolean(isLate),
+    canConsolidate: coverable.some((row) => row.id === parcel.id),
+    warehouse: {
+      id: parcel.warehouse.id,
+      name: parcel.warehouse.name,
+      city: parcel.warehouse.city,
+      leadTimeDays: parcel.warehouse.leadTimeDays,
+    },
+    source: {
+      quotationId: parcel.quotation.id,
+      number: parcel.quotation.number,
+      status: parcel.quotation.status,
+      repId: parcel.quotation.repId,
+      customerId: parcel.quotation.customer.id,
+      customer: parcel.quotation.customer.name,
+      shipmentCount: siblings,
+    },
+    lines: parcel.lines.map((line) => ({
+      quotationLineId: line.quotationLineId,
+      product: line.quotationLine.product.name,
+      sku: line.quotationLine.product.sku,
+      ordered: line.quotationLine.qty,
+      qty: line.qty,
+    })),
+    orderLines: orderLines.map((line) => ({
+      id: line.id,
+      productId: line.product.id,
+      productName: line.product.name,
+      qty: line.qty,
+    })),
+  };
+}
+
+// Moves a shipment along the only path it can take: allocated, out, arrived.
+const NEXT_STATE = {
+  [FULFILMENT_STATUS.ACCEPTED]: FULFILMENT_STATUS.SHIPPED,
+  [FULFILMENT_STATUS.SHIPPED]: FULFILMENT_STATUS.DELIVERED,
+};
+
+export async function validateFulfilment(db, id, userId) {
+  const parcel = await db.fulfilment.findUnique({
+    where: { id },
+    include: { warehouse: true, quotation: { select: { id: true, number: true } } },
+  });
+
+  if (!parcel) return { error: "That shipment no longer exists" };
+
+  const next = NEXT_STATE[parcel.status];
+  if (!next) {
+    return { error: "Only an allocated or shipped parcel can be moved on" };
+  }
+
+  await db.fulfilment.update({ where: { id }, data: { status: next } });
+
+  await logActivity(db, {
+    quotationId: parcel.quotationId,
+    userId,
+    action: next === FULFILMENT_STATUS.SHIPPED ? "FULFILMENT_SHIPPED" : "FULFILMENT_DELIVERED",
+    detail: `${parcel.reference} from ${parcel.warehouse.name}`,
+  });
+
+  return { status: next };
 }

@@ -1,10 +1,13 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { FileText, Warehouse } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import {
   Badge,
   Card,
   ErrorState,
+  SmartButton,
+  SmartButtons,
   Spinner,
   Table,
   TBody,
@@ -31,7 +34,7 @@ export function ProductDetailPage() {
 
   const product = useQuery({
     queryKey: ["product", id],
-    queryFn: async () => (await api.get(`/catalogue/products/${id}`)).data.product,
+    queryFn: async () => (await api.get(`/catalogue/products/${id}`)).data,
   });
 
   if (product.isLoading) return <Spinner label="Loading product" />;
@@ -39,14 +42,36 @@ export function ProductDetailPage() {
     return <ErrorState message={errorMessage(product.error)} onRetry={product.refetch} />;
   }
 
-  const record = product.data;
+  const { product: record, counts } = product.data;
 
   return (
     <div className="animate-fadeUp">
       <PageHeader
         title={record.name}
         subtitle={`${record.sku} · ${record.category}`}
-        actions={record.isPromoted ? <Badge>Promoted</Badge> : null}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            {record.isPromoted && <Badge>Promoted</Badge>}
+            <SmartButtons>
+              <SmartButton
+                count={counts.quotations}
+                label="In quotations"
+                icon={FileText}
+                to={`/quotations?productId=${record.id}`}
+              />
+              <SmartButton
+                count={counts.warehouses}
+                label="Stock"
+                icon={Warehouse}
+                onClick={() =>
+                  document
+                    .getElementById("stock-table")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              />
+            </SmartButtons>
+          </div>
+        }
       />
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -106,6 +131,7 @@ export function ProductDetailPage() {
         )}
 
         {record.stock.length > 0 && (
+          <div id="stock-table" className="scroll-mt-24">
           <Card padded={false}>
             <h2 className="border-b border-sand-200 px-6 py-4 text-xl font-semibold text-sand-900">
               Stock
@@ -129,6 +155,7 @@ export function ProductDetailPage() {
               </TBody>
             </Table>
           </Card>
+          </div>
         )}
       </div>
     </div>
