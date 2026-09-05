@@ -59,6 +59,15 @@ export function AuthProvider({ children }) {
     return response.data;
   }
 
+  // Customers need no approval, so this signs them in the way login does.
+  async function registerCustomer(details) {
+    const response = await api.post("/auth/portal-signup", details);
+    setToken(response.data.token);
+    setUser(response.data.user);
+    applyMode(response.data.mode);
+    return response.data.user;
+  }
+
   function logout() {
     clearToken();
     setUser(null);
@@ -71,6 +80,7 @@ export function AuthProvider({ children }) {
     isLoading,
     login,
     requestAccess,
+    registerCustomer,
     logout,
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

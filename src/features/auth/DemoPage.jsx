@@ -5,12 +5,28 @@ import { ArrowLeft, FlaskConical, Loader2 } from "lucide-react";
 import { AuthShell } from "./AuthShell";
 import { SignInForm } from "./SignInForm";
 import { RequestAccessForm } from "./RequestAccessForm";
+import { RegisterCustomerForm } from "./RegisterCustomerForm";
 import { useAuth } from "../../app/AuthProvider";
 import { api, errorMessage } from "../../lib/api";
 import { Card } from "../../components/ui";
 import { DB_MODES, ROLE_LABELS, ROLE_ORDER, ROLES } from "../../lib/constants";
 
 const DEMO_PASSWORD = "demo1234";
+
+const SCREEN_COPY = {
+  accounts: {
+    title: "Explore the demo",
+    subtitle: "Pick a role to sign in with one click.",
+  },
+  request: {
+    title: "Request access",
+    subtitle: "Your request is filed in the demo database, so you can approve it as the admin.",
+  },
+  register: {
+    title: "Create a customer account",
+    subtitle: "Registers a company in the demo database and signs you into its portal.",
+  },
+};
 
 // The entrance spells out what the demo instance is; inside the app the same
 // idea is carried by the rail and chip.
@@ -66,25 +82,29 @@ export function DemoPage() {
     }, [])
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
 
-  const isRequest = screen === "request";
+  const isAccounts = screen === "accounts";
 
   return (
     <AuthShell strip={<DemoStrip />}>
       <Card>
         <h1 className="text-2xl font-semibold text-sand-900">
-          {isRequest ? "Request access" : "Explore the demo"}
+          {SCREEN_COPY[screen].title}
         </h1>
-        <p className="mt-1 text-base text-sand-600">
-          {isRequest
-            ? "Your request is filed in the demo database, so you can approve it as the admin."
-            : "Pick a role to sign in with one click."}
-        </p>
+        <p className="mt-1 text-base text-sand-600">{SCREEN_COPY[screen].subtitle}</p>
 
-        {isRequest ? (
+        {screen === "request" && (
           <div className="mt-6">
             <RequestAccessForm mode={DB_MODES.DEMO} onDone={() => setScreen("accounts")} />
           </div>
-        ) : (
+        )}
+
+        {screen === "register" && (
+          <div className="mt-6">
+            <RegisterCustomerForm mode={DB_MODES.DEMO} onDone={() => setScreen("accounts")} />
+          </div>
+        )}
+
+        {isAccounts && (
           <>
             {accounts.isLoading && (
               <p className="mt-6 text-sm text-sand-600">Loading demo accounts…</p>
@@ -139,7 +159,7 @@ export function DemoPage() {
       </Card>
 
       {/* Typing an address still works, for anyone who prefers it. */}
-      {!isRequest && (
+      {isAccounts && (
         <Card>
           <p className="text-base font-medium text-sand-900">Or sign in by hand</p>
           <p className="mt-0.5 text-sm text-sand-600">
@@ -155,17 +175,29 @@ export function DemoPage() {
         </Card>
       )}
 
-      {!isRequest && (
-        <p className="text-center text-sm text-sand-600">
-          Work here and need an account?{" "}
-          <button
-            type="button"
-            onClick={() => setScreen("request")}
-            className="font-medium text-ink-700 underline underline-offset-2 hover:text-ink-800"
-          >
-            Request access
-          </button>
-        </p>
+      {isAccounts && (
+        <div className="space-y-1 text-center text-sm text-sand-600">
+          <p>
+            Want to see the portal from outside?{" "}
+            <button
+              type="button"
+              onClick={() => setScreen("register")}
+              className="font-medium text-ink-700 underline underline-offset-2 hover:text-ink-800"
+            >
+              Register as a customer
+            </button>
+          </p>
+          <p>
+            Work here and need an account?{" "}
+            <button
+              type="button"
+              onClick={() => setScreen("request")}
+              className="font-medium text-ink-700 underline underline-offset-2 hover:text-ink-800"
+            >
+              Request access
+            </button>
+          </p>
+        </div>
       )}
 
       <p className="text-center">

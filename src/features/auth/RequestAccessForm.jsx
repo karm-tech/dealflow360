@@ -9,8 +9,8 @@ import { ROLE_LABELS, ROLES } from "../../lib/constants";
 // Roles someone may ask for. Advisory only; the admin picks the real role.
 const REQUESTABLE_ROLES = [ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE, ROLES.ADMIN];
 
-// Internal staff only. A customer portal login belongs to a customer record and
-// is created when a quotation is shared, never by self-signup.
+// Internal staff only, and approved by hand because these roles can see every
+// customer. Customers register themselves through RegisterCustomerForm.
 export function RequestAccessForm({ mode, onDone }) {
   const { requestAccess } = useAuth();
   const [formError, setFormError] = useState("");
