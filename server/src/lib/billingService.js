@@ -23,6 +23,7 @@ import {
   scheduleRows,
   unusedPortion,
 } from "./billing.js";
+import { defaultRenewalLeadDays } from "./renewal.js";
 
 // --- numbering --------------------------------------------------------------
 
@@ -187,6 +188,9 @@ async function createSubscriptions(db, quotation, openingInvoiceId) {
         nextBillingDate: rows[1] ? rows[1].periodStart : rows[0].periodEnd,
         endDate: line.endDate,
         status: SUBSCRIPTION_STATUS.ACTIVE,
+        // Copied so the subscription keeps its notice period once the order
+        // that created it is history.
+        renewalLeadDays: line.renewalLeadDays ?? defaultRenewalLeadDays(line.plan),
         schedules: {
           create: rows.map((row, index) => ({
             periodStart: row.periodStart,
@@ -206,10 +210,115 @@ async function createSubscriptions(db, quotation, openingInvoiceId) {
   return created;
 }
 
+// A renewal does not open a second subscription: it bills the next period of
+// the one it renews, at whatever figures the rep agreed on the renewal rather
+// than what was forecast when the subscription opened.
+async function billRenewalOrder(db, mode, quotation, userId) {
+  const subscription = await db.subscription.findUnique({
+    where: { id: quotation.renewsSubscriptionId },
+    include: { schedules: { orderBy: { periodStart: "asc" } } },
+  });
+  if (!subscription || !quotation.renewalPeriodStart) return { skipped: true };
+
+  const period = subscription.schedules.find(
+    (row) => row.periodStart.getTime() === quotation.renewalPeriodStart.getTime(),
+  );
+  if (!period || period.status !== SCHEDULE_STATUS.SCHEDULED) return { skipped: true };
+
+  const issueDate = new Date();
+  const termsDays = await paymentTerms(db);
+  const covers = `${period.periodStart.toDateString()} to ${period.periodEnd.toDateString()}`;
+
+  const lines = [];
+  let subtotal = 0;
+  let taxAmount = 0;
+
+  for (const line of quotation.lines) {
+    const figures = lineFigures(line);
+    if (figures.net <= 0) continue;
+
+    lines.push({
+      description: `${line.product.name} — ${covers}`,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      discountPct: line.discountPct,
+      taxRatePct: figures.taxRatePct,
+      lineTotal: figures.net,
+      quotationLineId: line.id,
+    });
+
+    subtotal += figures.net;
+    taxAmount += round(figures.net * (figures.taxRatePct / 100));
+  }
+
+  if (lines.length === 0) return { skipped: true };
+
+  subtotal = round(subtotal);
+  taxAmount = round(taxAmount);
+
+  const invoice = await db.invoice.create({
+    data: {
+      number: await nextInvoiceNumber(db),
+      quotationId: quotation.id,
+      customerId: quotation.customerId,
+      type: INVOICE_TYPE.RECURRING,
+      issueDate,
+      dueDate: dueDateFrom(issueDate, termsDays),
+      subtotal,
+      taxAmount,
+      total: round(subtotal + taxAmount),
+      status: INVOICE_STATUS.ISSUED,
+      lines: { create: lines },
+    },
+  });
+
+  await db.billingSchedule.update({
+    where: { id: period.id },
+    data: { status: SCHEDULE_STATUS.INVOICED, invoiceId: invoice.id, amount: subtotal },
+  });
+
+  // The period just billed is behind us, so the subscription now points at the
+  // next one still outstanding.
+  const next = subscription.schedules.find(
+    (row) => row.status === SCHEDULE_STATUS.SCHEDULED && row.id !== period.id,
+  );
+
+  await db.subscription.update({
+    where: { id: subscription.id },
+    data: { nextBillingDate: next ? next.periodStart : period.periodEnd },
+  });
+
+  await logActivity(db, {
+    quotationId: quotation.id,
+    userId,
+    action: "RENEWAL_BILLED",
+    detail: `${invoice.number} for ${subscription.reference} · ${covers}`,
+  });
+
+  const portalUsers = await db.user.findMany({
+    where: { customerId: quotation.customerId, status: "ACTIVE" },
+    select: { id: true, email: true, name: true },
+  });
+
+  await notify(db, mode, {
+    users: portalUsers,
+    type: NOTIFICATION_TYPES.INVOICE_ISSUED,
+    title: `Invoice ${invoice.number} for ${covers}`,
+    body: `Due ${new Date(invoice.dueDate).toDateString()}.`,
+    quotationId: quotation.id,
+  });
+
+  return { invoiceId: invoice.id, subscriptions: 0, renewed: subscription.reference };
+}
+
 // The whole billing cascade for a newly agreed order.
 export async function billConfirmedOrder(db, mode, quotation, userId) {
   const already = await db.invoice.count({ where: { quotationId: quotation.id } });
   if (already > 0) return { skipped: true };
+
+  if (quotation.renewsSubscriptionId) {
+    return billRenewalOrder(db, mode, quotation, userId);
+  }
 
   const invoice = await raiseOpeningInvoice(db, quotation);
   const subscriptions = await createSubscriptions(db, quotation, invoice ? invoice.id : null);

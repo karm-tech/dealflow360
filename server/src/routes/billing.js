@@ -13,6 +13,7 @@ import {
   setSubscriptionPaused,
   subscriptionRecord,
 } from "../lib/billingService.js";
+import { dueRenewals, runRenewals } from "../lib/renewalService.js";
 
 export const billingRouter = Router();
 
@@ -42,6 +43,34 @@ function ownsOrRefuse(res, user, repId) {
   }
   return true;
 }
+
+// --- renewals ---------------------------------------------------------------
+
+// What the run would raise right now, so the sweep can be looked at before it
+// is set going.
+billingRouter.get("/renewals/due", async (req, res) => {
+  const due = await dueRenewals(req.db);
+
+  res.json({
+    renewals: due.map(({ subscription, period, leadDays }) => ({
+      subscriptionId: subscription.id,
+      reference: subscription.reference,
+      customer: subscription.customer.name,
+      product: subscription.quotationLine.product.name,
+      rep: subscription.quotationLine.quotation.rep?.name || null,
+      plan: subscription.plan.name,
+      periodStart: period.periodStart,
+      periodEnd: period.periodEnd,
+      amount: period.amount,
+      leadDays,
+    })),
+  });
+});
+
+billingRouter.post("/renewals/run", requireRole(...BILLING_ROLES), async (req, res) => {
+  const result = await runRenewals(req.db, req.dbMode);
+  res.json(result);
+});
 
 // --- invoices ---------------------------------------------------------------
 
