@@ -7,7 +7,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { BILLING_TYPE, QUOTATION_STATUS, ROLES } from "../lib/constants.js";
-import { resolveUnitPrice } from "../lib/pricing.js";
+import { priceForTier } from "../lib/pricing.js";
+import { applyVariantPrice } from "../lib/variants.js";
 import { quotationDetail, quotationSummary, QUOTATION_INCLUDE } from "../lib/quotationView.js";
 import { nextQuotationNumber } from "../lib/quotationNumber.js";
 import { defaultRenewalLeadDays } from "../lib/renewal.js";
@@ -73,19 +74,13 @@ portalRouter.get("/products", async (req, res) => {
       category: true,
       priceListItems: { include: { priceList: true } },
       defaultPlan: true,
+      variants: { orderBy: [{ attribute: "asc" }, { extraPrice: "asc" }] },
     },
     orderBy: [{ categoryId: "asc" }, { name: "asc" }],
   });
 
   res.json({
     products: products.map((product) => {
-      const usable = product.priceListItems.filter(
-        (item) =>
-          item.priceList.isActive &&
-          (!item.priceList.tierId || item.priceList.tierId === customer.tierId),
-      );
-      const forTier = usable.filter((item) => item.priceList.tierId === customer.tierId);
-
       return {
         id: product.id,
         name: product.name,
@@ -93,13 +88,18 @@ portalRouter.get("/products", async (req, res) => {
         category: product.category.name,
         categoryId: product.categoryId,
         unit: product.unit,
-        // Their tier's price, so what they add up in the basket is what the
-        // quotation will say.
-        price: resolveUnitPrice(product, forTier.length ? forTier : usable),
+        price: priceForTier(product, customer.tierId),
         taxRatePct: product.taxRatePct,
         billingType: product.defaultBillingType,
         planName: product.defaultPlan ? product.defaultPlan.name : null,
         isStockable: product.isStockable,
+        description: product.description,
+        variants: product.variants.map((variant) => ({
+          id: variant.id,
+          attribute: variant.attribute,
+          value: variant.value,
+          extraPrice: variant.extraPrice,
+        })),
       };
     }),
   });
@@ -117,6 +117,7 @@ const requestSchema = z.object({
     .array(
       z.object({
         productId: z.number().int().positive(),
+        variantId: z.number().int().positive().nullable().optional(),
         qty: z.number().int().min(1, "Quantity must be at least 1"),
       }),
     )
@@ -159,7 +160,11 @@ portalRouter.post("/requests", async (req, res) => {
   // left open while a price changed still quotes the price in force now.
   const products = await req.db.product.findMany({
     where: { id: { in: parsed.data.lines.map((line) => line.productId) }, isActive: true },
-    include: { priceListItems: { include: { priceList: true } }, defaultPlan: true },
+    include: {
+      priceListItems: { include: { priceList: true } },
+      defaultPlan: true,
+      variants: true,
+    },
   });
 
   const byId = new Map(products.map((product) => [product.id, product]));
@@ -168,29 +173,36 @@ portalRouter.post("/requests", async (req, res) => {
     return res.status(400).json({ error: "One of those products is no longer available" });
   }
 
-  const lines = parsed.data.lines.map((line) => {
+  const lines = [];
+  for (const line of parsed.data.lines) {
     const product = byId.get(line.productId);
-    const usable = product.priceListItems.filter(
-      (item) =>
-        item.priceList.isActive &&
-        (!item.priceList.tierId || item.priceList.tierId === customer.tierId),
-    );
-    const forTier = usable.filter((item) => item.priceList.tierId === customer.tierId);
     const isRecurring = product.defaultBillingType === BILLING_TYPE.RECURRING;
     const plan = isRecurring ? product.defaultPlan : null;
 
-    return {
+    if (product.variants.length > 0 && !line.variantId) {
+      return res.status(400).json({ error: `Choose a variant for ${product.name}` });
+    }
+
+    const variant = line.variantId
+      ? product.variants.find((row) => row.id === line.variantId)
+      : null;
+    if (line.variantId && !variant) {
+      return res.status(400).json({ error: `That variant is not available on ${product.name}` });
+    }
+
+    lines.push({
       productId: product.id,
+      variantId: variant ? variant.id : null,
       qty: line.qty,
-      unitPrice: resolveUnitPrice(product, forTier.length ? forTier : usable),
+      unitPrice: applyVariantPrice(priceForTier(product, customer.tierId), variant),
       // A customer never asks for a discount here; the rep decides that.
       discountPct: 0,
       billingType: product.defaultBillingType,
       planId: plan ? plan.id : null,
       startDate: isRecurring ? new Date() : null,
       renewalLeadDays: plan ? defaultRenewalLeadDays(plan) : null,
-    };
-  });
+    });
+  }
 
   // It arrives as a draft, not as anything approved. The rep still prices it,
   // discounts it and puts it through the same approval the flow always uses.

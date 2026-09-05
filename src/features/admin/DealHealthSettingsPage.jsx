@@ -134,6 +134,7 @@ export function DealHealthSettingsPage() {
               label="Stalled after"
               htmlFor="stalled-days"
               hint="Days of silence before a deal is penalised."
+              tooltip="Grace period. Only days after this count toward the stalled penalty."
             >
               <Input
                 id="stalled-days"
@@ -148,6 +149,7 @@ export function DealHealthSettingsPage() {
               label="Discount jump"
               htmlFor="anomaly-threshold"
               hint="Points above the rep's own average."
+              tooltip="Compared to this rep's confirmed history, not a company-wide number."
             >
               <Input
                 id="anomaly-threshold"
@@ -163,6 +165,7 @@ export function DealHealthSettingsPage() {
               label="Deals before an average"
               htmlFor="min-quotes"
               hint="Below this a rep has no baseline and the penalty is skipped."
+              tooltip="A tiny sample is not a baseline. The anomaly penalty is skipped until this many deals exist."
             >
               <Input
                 id="min-quotes"
@@ -217,7 +220,11 @@ export function DealHealthSettingsPage() {
               <p className="mt-0.5 mb-3 text-sm text-sand-600">{penalty.detail}</p>
 
               <div className="space-y-3">
-                <Field label={penalty.perDay.label} htmlFor={penalty.perDay.key}>
+                <Field
+                  label={penalty.perDay.label}
+                  htmlFor={penalty.perDay.key}
+                  tooltip="Points subtracted for each day this condition holds, until the cap."
+                >
                   <Input
                     id={penalty.perDay.key}
                     type="number"
@@ -228,7 +235,11 @@ export function DealHealthSettingsPage() {
                   />
                 </Field>
 
-                <Field label={penalty.cap.label} htmlFor={penalty.cap.key}>
+                <Field
+                  label={penalty.cap.label}
+                  htmlFor={penalty.cap.key}
+                  tooltip="Maximum this penalty can take from one deal."
+                >
                   <Input
                     id={penalty.cap.key}
                     type="number"
@@ -247,7 +258,7 @@ export function DealHealthSettingsPage() {
               A flat cost, since one jump is one jump however large.
             </p>
 
-            <Field label="Points" htmlFor="discountAnomaly">
+            <Field label="Points" htmlFor="discountAnomaly" tooltip="Flat cost for one out-of-character discount. Size of the jump does not add more.">
               <Input
                 id="discountAnomaly"
                 type="number"

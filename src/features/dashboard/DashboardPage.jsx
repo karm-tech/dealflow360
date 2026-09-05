@@ -1,13 +1,8 @@
-// The landing screen: what needs attention first, then how the business is
-// doing.
-//
-// Every figure here is worked out on the server from the records underneath it.
-// Nothing on this page is a stored total, so it cannot disagree with the
-// quotation it came from.
+// Figures come from the server; nothing on this page is a stored total.
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -36,26 +31,17 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatMoney, daysSince } from "../../lib/format";
-import { QUOTATION_STATUS_LABELS } from "../../lib/constants";
+import { CUSTOMER_BAND_TONES, QUOTATION_STATUS_LABELS } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
 import { TierSuggestions } from "./TierSuggestions";
+import { ReportFilters, applyFiltersToSearch, filtersFromSearch, filtersToParams } from "./ReportFilters";
+import { Kpi } from "./Kpi";
 
 const HEALTH_TONES = { HEALTHY: "ok", AT_RISK: "warn", CRITICAL: "bad" };
-const BAND_TONES = { TRUSTED: "ok", RELIABLE: "ok", NEW: "info", WATCH: "warn", RISKY: "bad" };
 
 // Only the stages a deal passes through on its way to being won. Cancelled and
 // rejected are outcomes, not stages, and are counted in the win rate instead.
 const PIPELINE_ORDER = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT", "UNDER_NEGOTIATION", "CONFIRMED"];
-
-function Kpi({ label, value, hint, tone }) {
-  return (
-    <Card>
-      <p className="text-sm text-sand-600">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold ${tone || "text-sand-900"}`}>{value}</p>
-      {hint && <p className="mt-1 text-sm text-sand-600">{hint}</p>}
-    </Card>
-  );
-}
 
 function NoteDialog({ open, title, description, action, isBusy, onClose, onConfirm }) {
   const [note, setNote] = useState("");
@@ -77,7 +63,7 @@ function NoteDialog({ open, title, description, action, isBusy, onClose, onConfi
         </>
       }
     >
-      <Field label="Note" htmlFor="nudge-note" hint="Optional. Sent with the alert.">
+      <Field label="Note" htmlFor="nudge-note" hint="Optional. Sent with the alert." tooltip="Written on the timeline without moving the stall clock.">
         <Textarea
           id="nudge-note"
           rows={3}
@@ -90,8 +76,6 @@ function NoteDialog({ open, title, description, action, isBusy, onClose, onConfi
   );
 }
 
-// The score and the sentence behind it. The reasons are what make the number
-// worth showing: a score nobody can explain is a score nobody acts on.
 function AlertCard({ alert, onNudge, onEscalate, canNudge }) {
   const idle = daysSince(alert.lastActivityAt);
 
@@ -143,7 +127,7 @@ function AlertCard({ alert, onNudge, onEscalate, canNudge }) {
 
       {alert.customerScore && alert.customerScore.band !== "TRUSTED" && (
         <p className="mt-3 flex items-center gap-2 text-sm text-sand-600">
-          <StatusPill tone={BAND_TONES[alert.customerScore.band]}>
+            <StatusPill tone={CUSTOMER_BAND_TONES[alert.customerScore.band]}>
             {alert.customerScore.label} · {alert.customerScore.score}
           </StatusPill>
           <span>{alert.customerScore.summary}</span>
@@ -162,14 +146,16 @@ function AlertCard({ alert, onNudge, onEscalate, canNudge }) {
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const filters = filtersFromSearch(params);
+  const filterQuery = filtersToParams(filters);
   const [nudging, setNudging] = useState(null);
   const [escalating, setEscalating] = useState(null);
 
   const dashboard = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => (await api.get("/dashboard")).data,
+    queryKey: ["dashboard", filterQuery],
+    queryFn: async () => (await api.get("/dashboard", { params: filterQuery })).data,
   });
 
   const nudge = useMutation({
@@ -225,6 +211,13 @@ export function DashboardPage() {
             ? "Your deals, and the ones that need a next step."
             : "Every open deal, and the ones that need a next step."
         }
+        actions={
+          <Link to={`/reports?${params.toString()}`}>
+            <Button size="sm" variant="secondary" icon={ArrowUpRight}>
+              Open reports
+            </Button>
+          </Link>
+        }
         aside={
           needsAttention > 0 ? (
             <StatusPill tone={counts.CRITICAL > 0 ? "bad" : "warn"}>
@@ -234,6 +227,13 @@ export function DashboardPage() {
             <StatusPill tone="ok">Nothing needs chasing</StatusPill>
           )
         }
+      />
+
+      <ReportFilters
+        filters={filters}
+        options={data.options}
+        role={user?.role}
+        onChange={(next) => applyFiltersToSearch(next, setParams)}
       />
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -7,12 +7,13 @@ import { isEditable } from "./quotationRules.js";
 import { scoreQuotation } from "./risk.js";
 import { onHandQty, shortStockLines } from "./stock.js";
 import { defaultRenewalLeadDays, maxRenewalLeadDays } from "./renewal.js";
+import { variantLabel } from "./variants.js";
 
 export const QUOTATION_INCLUDE = {
   customer: { include: { tier: true } },
   rep: { select: { id: true, name: true, email: true } },
   lines: {
-    include: { product: { include: { category: true, stocks: true } }, plan: true },
+    include: { product: { include: { category: true, stocks: true } }, plan: true, variant: true },
     orderBy: { id: "asc" },
   },
   approvalSteps: {
@@ -65,6 +66,9 @@ function lineView(line, figures, shortByProduct) {
     id: line.id,
     productId: line.productId,
     productName: line.product.name,
+    description: line.product.description,
+    variantId: line.variantId,
+    variantLabel: variantLabel(line.variant),
     sku: line.product.sku,
     category: line.product.category.name,
     unit: line.product.unit,

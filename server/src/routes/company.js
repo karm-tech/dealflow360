@@ -128,6 +128,18 @@ companyRouter.post(
   },
 );
 
+// Streamed through /api so the browser preview uses the same proxy as every
+// other request, rather than asking the Vite origin for a file it does not have.
+companyRouter.get("/logo-file", async (req, res) => {
+  const settings = await req.db.settings.findUnique({ where: { id: 1 } });
+  if (!settings?.logoPath) return res.status(404).json({ error: "There is no logo" });
+
+  const file = path.join(UPLOADS_DIR, path.basename(settings.logoPath));
+  if (!fs.existsSync(file)) return res.status(404).json({ error: "There is no logo" });
+
+  res.sendFile(file);
+});
+
 companyRouter.delete("/logo", requireRole(ROLES.ADMIN), async (req, res) => {
   const settings = await req.db.settings.findUnique({ where: { id: 1 } });
   if (!settings.logoPath) return res.status(404).json({ error: "There is no logo to remove" });

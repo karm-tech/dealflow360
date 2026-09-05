@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { BILLING_TYPE, INTERNAL_ROLES, QUOTATION_STATUS, ROLES } from "../lib/constants.js";
-import { resolveUnitPrice } from "../lib/pricing.js";
+import { priceForTier } from "../lib/pricing.js";
 import { onHandQty } from "../lib/stock.js";
 import { quotationSummary, QUOTATION_INCLUDE } from "../lib/quotationView.js";
 import { billingCounts } from "../lib/billingService.js";
@@ -51,6 +51,7 @@ catalogueRouter.get("/products", async (req, res) => {
     include: {
       category: true,
       stocks: true,
+      variants: { orderBy: [{ attribute: "asc" }, { extraPrice: "asc" }] },
       priceListItems: { include: { priceList: true } },
       defaultPlan: true,
     },
@@ -59,21 +60,15 @@ catalogueRouter.get("/products", async (req, res) => {
   });
 
   res.json({
-    products: products.map((product) => {
-      const usable = product.priceListItems.filter(
-        (item) => item.priceList.isActive && (!item.priceList.tierId || item.priceList.tierId === tierId),
-      );
-      const forTier = usable.filter((item) => item.priceList.tierId === tierId);
-      const price = resolveUnitPrice(product, forTier.length ? forTier : usable);
-
-      return {
+    products: products.map((product) => ({
         id: product.id,
         name: product.name,
         sku: product.sku,
+        description: product.description,
         category: product.category.name,
         categoryCeilingPct: product.category.discountCeilingPct,
         unit: product.unit,
-        price,
+        price: priceForTier(product, tierId),
         listPrice: product.salesPrice,
         taxRatePct: product.taxRatePct,
         defaultBillingType: product.defaultBillingType,
@@ -81,8 +76,13 @@ catalogueRouter.get("/products", async (req, res) => {
         isStockable: product.isStockable,
         onHand: onHandQty(product),
         isPromoted: product.isPromoted,
-      };
-    }),
+        variants: product.variants.map((variant) => ({
+          id: variant.id,
+          attribute: variant.attribute,
+          value: variant.value,
+          extraPrice: variant.extraPrice,
+        })),
+      })),
   });
 });
 
@@ -110,17 +110,19 @@ catalogueRouter.get("/products/:id", async (req, res) => {
       id: product.id,
       name: product.name,
       sku: product.sku,
+      categoryId: product.categoryId,
       category: product.category.name,
       categoryCeilingPct: product.category.discountCeilingPct,
       unit: product.unit,
+      description: product.description,
       salesPrice: product.salesPrice,
       cost: product.cost,
       marginPct: marginPct(product.salesPrice, product.cost),
       taxRatePct: product.taxRatePct,
       defaultBillingType: product.defaultBillingType,
+      defaultPlanId: product.defaultPlanId,
       defaultPlan: product.defaultPlan ? product.defaultPlan.name : null,
       isStockable: product.isStockable,
-      isReturnable: product.isReturnable,
       isPromoted: product.isPromoted,
       warrantyMonths: product.warrantyMonths,
       variants: product.variants.map((variant) => ({
@@ -263,10 +265,10 @@ const productSchema = z.object({
   cost: z.number().nonnegative("Cost cannot be negative"),
   taxRatePct: z.number().min(0).max(100).default(18),
   isStockable: z.boolean().default(true),
-  isReturnable: z.boolean().default(false),
   defaultBillingType: z.enum([BILLING_TYPE.ONE_TIME, BILLING_TYPE.RECURRING]).default(BILLING_TYPE.ONE_TIME),
   defaultPlanId: z.string().nullable().optional(),
   warrantyMonths: z.number().int().min(0).nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
 });
 
 // Master data carries cost and margin, so only an admin may add to it.
@@ -302,14 +304,119 @@ catalogueRouter.post("/products", requireRole(ROLES.ADMIN), async (req, res) => 
       cost: input.cost,
       taxRatePct: input.taxRatePct,
       isStockable: input.isStockable,
-      isReturnable: input.isReturnable,
       defaultBillingType: input.defaultBillingType,
       defaultPlanId: planId,
       warrantyMonths: input.warrantyMonths ?? null,
+      description: input.description || null,
     },
   });
 
   res.status(201).json({ id: product.id, name: product.name, sku: product.sku });
+});
+
+catalogueRouter.patch("/products/:id", requireRole(ROLES.ADMIN), async (req, res) => {
+  const parsed = productSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0].message });
+  }
+
+  const id = Number(req.params.id);
+  const existing = await req.db.product.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: "That product no longer exists" });
+
+  const input = parsed.data;
+
+  const category = await req.db.category.findUnique({ where: { id: input.categoryId } });
+  if (!category) return res.status(400).json({ error: "That category no longer exists" });
+
+  if (input.sku !== existing.sku) {
+    const clash = await req.db.product.findUnique({ where: { sku: input.sku } });
+    if (clash) return res.status(409).json({ error: `SKU ${input.sku} is already in use` });
+  }
+
+  const planId =
+    input.defaultBillingType === BILLING_TYPE.RECURRING ? input.defaultPlanId || "MONTHLY" : null;
+
+  if (planId) {
+    const plan = await req.db.recurringPlan.findUnique({ where: { id: planId } });
+    if (!plan) return res.status(400).json({ error: "Choose a billing period" });
+  }
+
+  await req.db.product.update({
+    where: { id },
+    data: {
+      name: input.name,
+      sku: input.sku,
+      categoryId: input.categoryId,
+      unit: input.unit,
+      salesPrice: input.salesPrice,
+      cost: input.cost,
+      taxRatePct: input.taxRatePct,
+      isStockable: input.isStockable,
+      defaultBillingType: input.defaultBillingType,
+      defaultPlanId: planId,
+      warrantyMonths: input.warrantyMonths ?? null,
+      description: input.description || null,
+    },
+  });
+
+  await logEvent(req.db, {
+    userId: req.user.id,
+    action: "CONFIG_CHANGED",
+    detail: `Changed product ${input.sku} (${input.name})`,
+  });
+
+  res.json({ ok: true });
+});
+
+// --- variants ---------------------------------------------------------------
+
+const variantSchema = z.object({
+  attribute: z.string().trim().min(1, "Give the variant an attribute, such as Size or Pack"),
+  value: z.string().trim().min(1, "Give the variant a value"),
+  extraPrice: z.number().min(0, "Extra price cannot be negative").default(0),
+});
+
+catalogueRouter.post("/products/:id/variants", requireRole(ROLES.ADMIN), async (req, res) => {
+  const parsed = variantSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const product = await req.db.product.findUnique({ where: { id: Number(req.params.id) } });
+  if (!product) return res.status(404).json({ error: "That product no longer exists" });
+
+  const clash = await req.db.productVariant.findFirst({
+    where: {
+      productId: product.id,
+      attribute: parsed.data.attribute,
+      value: parsed.data.value,
+    },
+  });
+  if (clash) {
+    return res.status(409).json({
+      error: `${parsed.data.attribute}: ${parsed.data.value} is already on this product`,
+    });
+  }
+
+  const variant = await req.db.productVariant.create({
+    data: { productId: product.id, ...parsed.data },
+  });
+
+  res.status(201).json({
+    id: variant.id,
+    attribute: variant.attribute,
+    value: variant.value,
+    extraPrice: variant.extraPrice,
+  });
+});
+
+catalogueRouter.delete("/products/:id/variants/:variantId", requireRole(ROLES.ADMIN), async (req, res) => {
+  const variant = await req.db.productVariant.findFirst({
+    where: { id: Number(req.params.variantId), productId: Number(req.params.id) },
+  });
+  if (!variant) return res.status(404).json({ error: "That variant no longer exists" });
+
+  await req.db.productVariant.delete({ where: { id: variant.id } });
+  res.json({ ok: true });
 });
 
 // --- create and edit a customer ---------------------------------------------

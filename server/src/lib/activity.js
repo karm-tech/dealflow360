@@ -14,10 +14,8 @@ export async function logEvent(db, { userId, action, detail }) {
   await db.activityLog.create({ data: { quotationId: null, userId, action, detail } });
 }
 
-// Belongs to a quotation but is not progress on it: chasing a deal, or putting
-// it in front of a manager. The trail records it, the stall clock does not move.
-// Otherwise nudging a stalled deal would clear its own alert and the deal would
-// look healthy again without anyone having actually done anything to it.
+// Recorded on the trail without moving lastActivityAt, so a nudge cannot clear
+// its own stall alert.
 export async function logWithoutProgress(db, { quotationId, userId, action, detail }) {
   await db.activityLog.create({ data: { quotationId, userId, action, detail } });
 }

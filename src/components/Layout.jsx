@@ -6,11 +6,12 @@ import { NotificationBell } from "./NotificationBell";
 import { UserMenu } from "./UserMenu";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
-import { ROLES } from "../lib/constants";
+import { homePathFor, ROLES } from "../lib/constants";
 
 // Each entry lists the roles allowed to see it, matching the route guards.
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Deal Health", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
+  { to: "/reports", label: "Reports", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/quotations", label: "Quotations", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/pipeline", label: "Pipeline", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER] },
   { to: "/approvals", label: "Approvals", roles: [ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.FINANCE] },
@@ -38,7 +39,7 @@ export function Layout() {
 
       <header className="border-b border-sand-200 bg-surface">
         <div className="mx-auto flex max-w-7xl items-center gap-x-3 px-4 py-3">
-          <NavLink to="/quotations" aria-label="DealFlow360 home">
+          <NavLink to={homePathFor(user.role)} aria-label="DealFlow360 home">
             <Wordmark />
           </NavLink>
 

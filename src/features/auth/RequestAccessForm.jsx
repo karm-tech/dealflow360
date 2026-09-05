@@ -50,7 +50,12 @@ export function RequestAccessForm({ mode, onDone }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <Field label="Full name" htmlFor="name" error={formState.errors.name?.message}>
+      <Field
+        label="Full name"
+        htmlFor="name"
+        tooltip="Shown on the access request the admin reviews."
+        error={formState.errors.name?.message}
+      >
         <Input
           id="name"
           type="text"
@@ -63,7 +68,12 @@ export function RequestAccessForm({ mode, onDone }) {
         />
       </Field>
 
-      <Field label="Email" htmlFor="request-email" error={formState.errors.email?.message}>
+      <Field
+        label="Email"
+        htmlFor="request-email"
+        tooltip="This becomes the login if the request is approved."
+        error={formState.errors.email?.message}
+      >
         <Input
           id="request-email"
           type="email"
@@ -73,7 +83,12 @@ export function RequestAccessForm({ mode, onDone }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="request-password" error={formState.errors.password?.message}>
+      <Field
+        label="Password"
+        htmlFor="request-password"
+        tooltip="At least 8 characters. Used only after an admin approves the request."
+        error={formState.errors.password?.message}
+      >
         <Input
           id="request-password"
           type="password"
@@ -90,6 +105,7 @@ export function RequestAccessForm({ mode, onDone }) {
         label="Role you need"
         htmlFor="requestedRole"
         hint="This is only what you are asking for. The admin decides the role you get."
+        tooltip="Advisory only. The role granted is the one the admin picks, not this value."
       >
         <Select id="requestedRole" {...register("requestedRole")}>
           {REQUESTABLE_ROLES.map((role) => (

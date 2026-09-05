@@ -1,13 +1,8 @@
-// Suggestions are built in two steps.
-//
-//   1. Candidates — relevance alone decides who is allowed in the list.
-//   2. Ranking    — promotion and margin order the products that got through.
-//
-// Promotion is a multiplier, never an addition, so marking a product promoted
-// can reorder relevant suggestions but can never pull an unrelated one in.
+// Candidates by relevance first, then rank by promotion × margin.
+// Promotion is a multiplier so it can reorder related products but never pull an unrelated one in.
 
 import { QUOTATION_STATUS } from "./constants.js";
-import { quotationTotals, resolveUnitPrice } from "./pricing.js";
+import { quotationTotals, priceForTier } from "./pricing.js";
 
 // A product must reach this share of the cart product's past orders to count as
 // related at all.
@@ -74,14 +69,6 @@ export function addDismissed(csv, productId) {
 
 // Price this customer would pay, so the margin shown is the margin of what
 // would actually be sold.
-function priceForCustomer(product, tierId) {
-  const items = product.priceListItems.filter(
-    (item) => item.priceList.isActive && (!item.priceList.tierId || item.priceList.tierId === tierId),
-  );
-  const forTier = items.filter((item) => item.priceList.tierId === tierId);
-  return resolveUnitPrice(product, forTier.length ? forTier : items);
-}
-
 export async function suggestUpsells(db, quotation) {
   const cartProductIds = quotation.lines.map((line) => line.productId);
   if (cartProductIds.length === 0) return [];
@@ -114,7 +101,7 @@ export async function suggestUpsells(db, quotation) {
 
     if (relevance < AFFINITY_THRESHOLD) continue;
 
-    const unitPrice = priceForCustomer(product, quotation.customer.tierId);
+    const unitPrice = priceForTier(product, quotation.customer.tierId);
     const marginPct = unitPrice > 0 ? ((unitPrice - product.cost) / unitPrice) * 100 : 0;
 
     // A suggestion that would damage the deal is never shown.

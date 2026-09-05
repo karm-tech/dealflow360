@@ -1,10 +1,4 @@
-// Documents to hand out: PDFs of a quotation or invoice, and CSV exports of the
-// list screens.
-//
-// Access is decided by the same rules as the record itself. A customer may
-// download their own quotation and nobody else's; a rep exports their own deals.
-// Putting that check here rather than in the browser means a guessed URL is
-// answered with a refusal rather than a document.
+// PDF, CSV and XLS. Access matches the record itself, so a guessed URL is refused.
 
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
@@ -15,6 +9,9 @@ import { quotationPdf, quotationPdfName } from "../lib/pdf/quotationPdf.js";
 import { invoicePdf, invoicePdfName } from "../lib/pdf/invoicePdf.js";
 import { companySettings } from "../lib/company.js";
 import { toCsv } from "../lib/csv.js";
+import { toXls } from "../lib/xls.js";
+import { buildSalesReport } from "../lib/reports.js";
+import { reportPdf, reportPdfName } from "../lib/pdf/reportPdf.js";
 
 export const documentsRouter = Router();
 
@@ -36,9 +33,7 @@ function sendCsv(res, text, filename) {
 
 // --- quotation PDF ----------------------------------------------------------
 
-// Loaded and permission-checked in one place, because both the download here
-// and the attachment on the send email need exactly the same thing.
-export async function loadQuotationForPdf(db, id) {
+async function loadQuotationForPdf(db, id) {
   return db.quotation.findUnique({ where: { id }, include: QUOTATION_INCLUDE });
 }
 
@@ -235,6 +230,7 @@ exportsRouter.get("/products.csv", async (req, res) => {
   const columns = [
     { label: "SKU", value: (product) => product.sku },
     { label: "Name", value: (product) => product.name },
+    { label: "Description", value: (product) => product.description || "" },
     { label: "Category", value: (product) => product.category.name },
     { label: "Unit", value: (product) => product.unit },
     { label: "Sales price", value: (product) => product.salesPrice },
@@ -254,6 +250,77 @@ exportsRouter.get("/products.csv", async (req, res) => {
   }
 
   sendCsv(res, toCsv(columns, products), `products-${stamp()}.csv`);
+});
+
+exportsRouter.get("/reports.pdf", async (req, res) => {
+  const report = await buildSalesReport(req.db, req.query, req.user);
+  const { company, currency } = await companySettings(req.db);
+  const buffer = await reportPdf(report, company, currency);
+  sendPdf(res, buffer, reportPdfName());
+});
+
+exportsRouter.get("/reports.xls", async (req, res) => {
+  const report = await buildSalesReport(req.db, req.query, req.user);
+  const seesMargin = [ROLES.ADMIN, ROLES.FINANCE, ROLES.SALES_MANAGER].includes(req.user.role);
+
+  const quoteColumns = [
+    { label: "Number", value: (row) => row.number },
+    { label: "Status", value: (row) => row.status },
+    { label: "Customer", value: (row) => row.customer },
+    { label: "Tier", value: (row) => row.tier },
+    { label: "Owner", value: (row) => row.rep },
+    { label: "Lines", value: (row) => row.lineCount },
+    { label: "Payable now", value: (row) => row.grandTotal },
+    { label: "Annual contract value", value: (row) => row.annualContractValue },
+    { label: "Risk score", value: (row) => row.riskScore },
+    { label: "Created", value: (row) => new Date(row.createdAt).toISOString().slice(0, 10) },
+  ];
+  if (seesMargin) {
+    quoteColumns.push({ label: "Margin %", value: (row) => row.marginPct });
+  }
+
+  const xml = toXls([
+    {
+      name: "Summary",
+      columns: [
+        { label: "Metric", value: (row) => row.metric },
+        { label: "Value", value: (row) => row.value },
+      ],
+      rows: [
+        { metric: "Period", value: report.filters.periodLabel },
+        { metric: "Quotations", value: report.kpis.quotations },
+        { metric: "Annual contract value", value: report.kpis.annualContractValue },
+        { metric: "Payable now", value: report.kpis.payableNow },
+        { metric: "Won", value: report.kpis.won },
+        { metric: "Lost", value: report.kpis.lost },
+        { metric: "Win rate %", value: report.kpis.winRatePct ?? "" },
+        { metric: "Pending approval", value: report.approval.pending },
+        { metric: "Approved", value: report.approval.approved },
+        { metric: "Rejected", value: report.approval.rejected },
+      ],
+    },
+    { name: "Quotations", columns: quoteColumns, rows: report.quotations },
+    {
+      name: "Products",
+      columns: [
+        { label: "SKU", value: (row) => row.sku },
+        { label: "Product", value: (row) => row.name },
+        { label: "Category", value: (row) => row.category },
+        { label: "Qty", value: (row) => row.qty },
+        { label: "Quotes", value: (row) => row.quotes },
+        { label: "Annual value", value: (row) => row.annualNet },
+        { label: "Discount given", value: (row) => row.discountGiven },
+      ],
+      rows: report.products,
+    },
+  ]);
+
+  res.setHeader("Content-Type", "application/vnd.ms-excel");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="sales-report-${stamp()}.xls"`,
+  );
+  res.send(xml);
 });
 
 exportsRouter.get("/customers.csv", async (req, res) => {

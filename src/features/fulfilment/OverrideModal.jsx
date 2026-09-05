@@ -92,6 +92,7 @@ export function OverrideModal({ open, onClose, quotationId, lines, onSaved }) {
                       key={warehouse.id}
                       label={warehouse.name}
                       hint={`${have} in stock · ${warehouse.leadTimeDays}d lead time`}
+                      tooltip="Units to take from this warehouse. Cannot exceed what is on hand."
                     >
                       <Input
                         type="number"

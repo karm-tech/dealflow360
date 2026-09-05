@@ -1,8 +1,4 @@
-// The landing screen: what needs attention, and how the business is doing.
-//
-// Scoping happens here, in the query, not in the browser. A rep asking for the
-// dashboard is answered only about their own deals — hiding another rep's
-// figures in the UI would still have sent them over the wire.
+// Scoped in the query. A rep is answered only about their own deals.
 
 import { Router } from "express";
 import { z } from "zod";
@@ -18,20 +14,13 @@ import { DEAL_HEALTH_INCLUDE, LIVE_STATUSES, scoreDeals } from "../lib/dealHealt
 import { CUSTOMER_SCORE_INCLUDE, scoreCustomer, tierSuggestion } from "../lib/customerScore.js";
 import { logEvent, logWithoutProgress } from "../lib/activity.js";
 import { notify, NOTIFICATION_TYPES, usersInRole } from "../lib/notify.js";
+import { parseReportQuery, quotationReportWhere } from "../lib/reportFilters.js";
+import { buildSalesReport, reportFilterOptions } from "../lib/reports.js";
+import { monthsInPeriod, round } from "../lib/pricing.js";
 
 export const dashboardRouter = Router();
 
 dashboardRouter.use(requireAuth, requireRole(...INTERNAL_ROLES));
-
-// A rep sees their own deals. Everyone else sees the whole desk, because a
-// manager who cannot see a deal cannot approve or escalate it.
-function ownDealsOnly(user) {
-  return user.role === ROLES.SALES_REP ? { repId: user.id } : {};
-}
-
-function round(value) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
 
 function monthKey(date) {
   const value = new Date(date);
@@ -62,13 +51,19 @@ function recentMonths(count = 6) {
 }
 
 dashboardRouter.get("/", async (req, res) => {
-  const scope = ownDealsOnly(req.user);
+  const filters = parseReportQuery(req.query, req.user);
+  const scope = quotationReportWhere(filters);
   const now = new Date();
+  const options = await reportFilterOptions(req.db, req.user);
 
   // --- deals in play, with a health score each ---
 
+  const liveWhere = filters.approval
+    ? scope
+    : { ...scope, status: { in: LIVE_STATUSES } };
+
   const liveDeals = await req.db.quotation.findMany({
-    where: { ...scope, status: { in: LIVE_STATUSES } },
+    where: liveWhere,
     include: DEAL_HEALTH_INCLUDE,
   });
 
@@ -156,10 +151,10 @@ dashboardRouter.get("/", async (req, res) => {
 
   // --- approvals waiting ---
 
-  const approvalWhere =
-    req.user.role === ROLES.SALES_REP
-      ? { quotation: { repId: req.user.id }, status: "PENDING" }
-      : { status: "PENDING" };
+  const approvalWhere = {
+    status: "PENDING",
+    quotation: scope,
+  };
 
   const pendingSteps = await req.db.approvalStep.findMany({
     where: approvalWhere,
@@ -178,7 +173,7 @@ dashboardRouter.get("/", async (req, res) => {
 
   if (seesMoney) {
     const invoices = await req.db.invoice.findMany({
-      where: { status: { not: INVOICE_STATUS.CANCELLED } },
+      where: { status: { not: INVOICE_STATUS.CANCELLED }, quotation: scope },
       select: {
         total: true,
         status: true,
@@ -208,18 +203,13 @@ dashboardRouter.get("/", async (req, res) => {
     }
 
     const activeSubscriptions = await req.db.subscription.findMany({
-      where: { status: SUBSCRIPTION_STATUS.ACTIVE },
+      where: { status: SUBSCRIPTION_STATUS.ACTIVE, quotationLine: { quotation: scope } },
       select: { qty: true, unitPrice: true, discountPct: true, plan: { select: { interval: true, intervalCount: true } } },
     });
 
-    // Recurring revenue restated per month so plans on different intervals can
-    // be added together.
-    const monthsPer = { MONTH: 1, QUARTER: 3, YEAR: 12 };
     const recurringMonthly = activeSubscriptions.reduce((sum, subscription) => {
-      const periodMonths =
-        (monthsPer[subscription.plan.interval] || 1) * (subscription.plan.intervalCount || 1);
       const net = subscription.qty * subscription.unitPrice * (1 - subscription.discountPct / 100);
-      return sum + net / periodMonths;
+      return sum + net / monthsInPeriod(subscription.plan);
     }, 0);
 
     money = {
@@ -244,7 +234,16 @@ dashboardRouter.get("/", async (req, res) => {
     winRatePct: wonCount + lostCount > 0 ? round((wonCount / (wonCount + lostCount)) * 100) : null,
     approvals: { pending: pendingSteps.length, oldestWaitingSince: oldestWait || null },
     money,
+    options,
   });
+});
+
+dashboardRouter.get("/reports", async (req, res) => {
+  const [report, options] = await Promise.all([
+    buildSalesReport(req.db, req.query, req.user),
+    reportFilterOptions(req.db, req.user),
+  ]);
+  res.json({ ...report, options });
 });
 
 // One deal's score, with the reason for every point lost. Used by the drill-down
@@ -282,9 +281,7 @@ const nudgeSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
-// A nudge is a message to whoever owns the deal. It deliberately does not touch
-// the deal: chasing someone is not the same as changing their work, and a nudge
-// that quietly edited the record would make the timeline lie.
+// Message only. A nudge must not move lastActivityAt or the stall clock would reset.
 dashboardRouter.post("/deals/:id/nudge", async (req, res) => {
   const parsed = nudgeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
@@ -320,10 +317,7 @@ dashboardRouter.post("/deals/:id/nudge", async (req, res) => {
   res.json({ ok: true, nudged: quotation.rep.name });
 });
 
-// Escalating puts the deal in front of a manager and says so on the timeline.
-// It does not move the deal into the approval chain: the chain is decided by the
-// discount, and letting an alert inject a step would mean the routing rules no
-// longer explain themselves.
+// Alerts a manager. Does not inject an approval step — routing stays discount-driven.
 dashboardRouter.post("/deals/:id/escalate", async (req, res) => {
   const parsed = nudgeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
@@ -366,9 +360,7 @@ dashboardRouter.post("/deals/:id/escalate", async (req, res) => {
 
 // --- tier suggestions -------------------------------------------------------
 
-// Evidence, not an instruction. Nothing here changes a ceiling until a person
-// says so, because what a customer is allowed to be discounted is a business
-// decision and not an inference.
+// Evidence only. A ceiling does not change until someone applies it.
 dashboardRouter.get(
   "/tier-suggestions",
   requireRole(ROLES.ADMIN, ROLES.SALES_MANAGER),

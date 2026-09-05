@@ -22,7 +22,7 @@ export async function searchCustomers(q) {
   return data.customers.map(customerOption);
 }
 
-export function productOption(product) {
+function productOption(product) {
   if (!product) return null;
   return {
     id: product.id,

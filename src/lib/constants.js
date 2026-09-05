@@ -9,6 +9,11 @@ export const ROLES = {
   CUSTOMER: "CUSTOMER",
 };
 
+// Shared landing path so login, demo and the root redirect cannot drift.
+export function homePathFor(role) {
+  return role === ROLES.CUSTOMER ? "/portal" : "/dashboard";
+}
+
 export const ROLE_LABELS = {
   ADMIN: "Admin",
   SALES_REP: "Sales Rep",
@@ -202,6 +207,14 @@ export const SCHEDULE_STATUS_TONES = {
 };
 
 export const PAYMENT_METHODS = ["CASH", "BANK", "CARD", "UPI"];
+
+export const CUSTOMER_BAND_TONES = {
+  TRUSTED: "ok",
+  RELIABLE: "ok",
+  NEW: "info",
+  WATCH: "warn",
+  RISKY: "bad",
+};
 
 export const PAYMENT_METHOD_LABELS = {
   CASH: "Cash",

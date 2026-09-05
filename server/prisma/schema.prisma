@@ -114,8 +114,7 @@ model Product {
   //   isStockable        -> does it need a warehouse? (fulfilment)
   //   defaultBillingType -> charged once or every period? (billing)
   // A rental is both; a support plan is neither. One field must not answer both.
-  isStockable  Boolean @default(true)
-  isReturnable Boolean @default(false)
+  isStockable Boolean @default(true)
 
   // ONE_TIME | RECURRING — only the DEFAULT. The quotation line decides.
   defaultBillingType String  @default("ONE_TIME")
@@ -124,6 +123,8 @@ model Product {
 
   // Free warranty is an attribute of the product, not a sellable line.
   warrantyMonths Int?
+
+  description String?
 
   // Used by the upsell panel.
   isPromoted   Boolean @default(false)
@@ -147,6 +148,10 @@ model ProductVariant {
   attribute  String
   value      String
   extraPrice Float   @default(0)
+
+  quotationLines QuotationLine[]
+
+  @@unique([productId, attribute, value])
 }
 
 model PriceList {
@@ -286,6 +291,9 @@ model QuotationLine {
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   productId   Int
   product     Product   @relation(fields: [productId], references: [id])
+
+  variantId Int?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   qty         Int   @default(1)
   unitPrice   Float

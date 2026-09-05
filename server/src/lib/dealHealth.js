@@ -1,16 +1,5 @@
-// Is this deal going wrong?
-//
-// Four things can be observed about a live deal without asking anyone: it has
-// gone quiet, it is discounted unlike the rep's other work, the delivery has
-// slipped past what the customer asked for, and it has been sitting in someone's
-// approval queue. A fifth comes from the customer's own record.
-//
-// Derived on read, never stored. A stored score would be a second copy of the
-// truth that goes stale the moment an activity row is written, and the whole
-// point is that it tracks the rows underneath it.
-//
-// Every penalty carries the sentence that explains it, so the score is always
-// answerable: "61 = lost 21 for 14 days stalled, 18 for a 6-day delivery slip".
+// Deal health is derived on read. A stored score would go stale the moment an
+// activity row is written. Each penalty carries the sentence that explains it.
 
 import { QUOTATION_STATUS } from "./constants.js";
 import { readHealthWeights } from "./dealHealthSettings.js";
@@ -121,8 +110,7 @@ export function scoreDealHealth(
 ) {
   const penalties = [];
 
-  // 1. Gone quiet. Counted from the grace period, not from the last activity,
-  // so a deal is not punished for a normal working gap.
+  // Idle days after the grace period, so a normal working gap is not a penalty.
   const idleDays = wholeDaysSince(quotation.lastActivityAt, now);
   const stalledDays = Math.max(0, idleDays - settings.stalledAfterDays);
   if (stalledDays > 0) {
@@ -135,7 +123,7 @@ export function scoreDealHealth(
     });
   }
 
-  // 2. Discounted unlike this rep's other work.
+  // Discount vs this rep's own average, not a company-wide number.
   const baseline = quotation.repId ? repAverages.get(quotation.repId) : undefined;
   const dealDiscount = weightedDiscountPct(quotation.lines || []);
 
@@ -149,8 +137,7 @@ export function scoreDealHealth(
     });
   }
 
-  // 3. Delivery slipped past what the customer asked for. Only counts when they
-  // named a date; without one there is nothing to be late against.
+  // Slip vs the customer's requested date. No date means nothing to be late against.
   if (quotation.requestedDeliveryDate && quotation.estimatedDeliveryDate) {
     const slipDays = Math.max(
       0,
@@ -171,8 +158,7 @@ export function scoreDealHealth(
     }
   }
 
-  // 4. Waiting on a colleague. A deal held up inside the company is our delay,
-  // and it is the one on this list we can always fix today.
+  // Internal wait — the delay this team can always clear.
   if (quotation.status === QUOTATION_STATUS.PENDING_APPROVAL && quotation.approvalPendingSince) {
     const waitingDays = wholeDaysSince(quotation.approvalPendingSince, now);
     if (waitingDays > 0) {
@@ -189,7 +175,7 @@ export function scoreDealHealth(
     }
   }
 
-  // 5. The customer's own record, as a single lookup.
+  // Customer's payment and close history, as a single lookup.
   if (customerBand && BAND_DEAL_PENALTY[customerBand]) {
     const points = BAND_DEAL_PENALTY[customerBand];
     penalties.push({

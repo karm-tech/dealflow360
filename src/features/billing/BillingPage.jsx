@@ -162,7 +162,7 @@ export function BillingPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Status" htmlFor="status">
+        <Field label="Status" htmlFor="status" tooltip="Draft, issued, part paid, paid or overdue — calculated from payments, not typed in.">
           <Select
             id="status"
             value={status}

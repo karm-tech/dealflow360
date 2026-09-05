@@ -59,7 +59,7 @@ function RequestCard({ request, assignableRoles, onApprove, onReject, isBusy }) 
       {isPending && !isRejecting && (
         <div className="flex flex-wrap items-end gap-3 border-t border-sand-200 bg-sand-50 px-5 py-4">
           <div className="min-w-[12rem]">
-            <Field label="Give this person the role" htmlFor={`role-${request.id}`}>
+            <Field label="Give this person the role" htmlFor={`role-${request.id}`} tooltip="The role granted. What they asked for on the form is recorded but grants nothing.">
               <Select
                 id={`role-${request.id}`}
                 value={role}
@@ -95,6 +95,7 @@ function RequestCard({ request, assignableRoles, onApprove, onReject, isBusy }) 
             label="Why are you declining?"
             htmlFor={`reason-${request.id}`}
             hint="The person is told this, so keep it clear and polite."
+            tooltip="Queued to the outbox and stored on the request. Required to decline."
           >
             <div className="flex flex-wrap gap-2">
               <Input

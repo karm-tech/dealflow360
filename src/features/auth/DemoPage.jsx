@@ -9,7 +9,7 @@ import { RegisterCustomerForm } from "./RegisterCustomerForm";
 import { useAuth } from "../../app/AuthProvider";
 import { api, errorMessage } from "../../lib/api";
 import { Card } from "../../components/ui";
-import { DB_MODES, ROLE_LABELS, ROLE_ORDER, ROLES } from "../../lib/constants";
+import { DB_MODES, homePathFor, ROLE_LABELS, ROLE_ORDER } from "../../lib/constants";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -65,7 +65,7 @@ export function DemoPage() {
     setSigningIn(email);
     try {
       const user = await login(email, DEMO_PASSWORD, DB_MODES.DEMO);
-      navigate(user.role === ROLES.CUSTOMER ? "/portal" : "/quotations", { replace: true });
+      navigate(homePathFor(user.role), { replace: true });
     } catch (caught) {
       setError(errorMessage(caught));
       setSigningIn(null);

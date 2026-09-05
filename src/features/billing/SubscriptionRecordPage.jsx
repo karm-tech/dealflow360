@@ -296,6 +296,7 @@ function QuantityControl({ subscription, onChanged, onError }) {
         label="Quantity"
         htmlFor="qty"
         hint="Applies from today. The remaining days of this period are charged at the difference and carried onto the next."
+        tooltip="A mid-period increase is prorated. The next full period bills the new quantity."
       >
         <div className="flex gap-2">
           <Input

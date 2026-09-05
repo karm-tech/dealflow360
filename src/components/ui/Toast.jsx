@@ -2,11 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 
-// Confirms that the action you just took worked, for changes you cannot see on
-// screen — a discount written across lines, a line merged into one further up.
-//
-// Not the notification bell. A toast is your own action and disappears; the
-// bell is something that happened involving you and stays until read.
+// Confirms the caller's own action. The notification bell is for events that
+// involve them and stay until read.
 
 const ToastContext = createContext(null);
 

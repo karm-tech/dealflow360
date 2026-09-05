@@ -47,6 +47,12 @@ function LineRows({ lines, figures, currency }) {
         View,
         { style: { width: COLUMNS[0].width } },
         h(Text, { style: styles.td }, line.product.name),
+        line.variant
+          ? h(Text, { style: styles.tdMuted }, `${line.variant.attribute}: ${line.variant.value}`)
+          : null,
+        line.product.description
+          ? h(Text, { style: styles.tdMuted }, line.product.description)
+          : null,
         h(
           Text,
           { style: styles.tdMuted },

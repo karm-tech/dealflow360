@@ -89,6 +89,7 @@ function NewQuotationDialog({ open, onClose }) {
         htmlFor="customer"
         error={error}
         hint={customer ? `${customer.record.tier} · up to ${customer.record.maxDiscountPct}% discount` : undefined}
+        tooltip="The draft opens against this customer. Tier and ceiling are copied from their record."
       >
         <RecordPicker
           id="customer"
@@ -205,7 +206,7 @@ export function QuotationsListPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Search" htmlFor="search">
+        <Field label="Search" htmlFor="search" tooltip="Matches quotation number or customer name.">
           <SearchField
             id="search"
             value={search}
@@ -214,7 +215,7 @@ export function QuotationsListPage() {
           />
         </Field>
 
-        <Field label="Stage" htmlFor="status">
+        <Field label="Stage" htmlFor="status" tooltip="Where the deal sits in the quote-to-order loop.">
           <Select
             id="status"
             value={status}
@@ -230,7 +231,7 @@ export function QuotationsListPage() {
           </Select>
         </Field>
 
-        <Field label="Sort by" htmlFor="sort">
+        <Field label="Sort by" htmlFor="sort" tooltip="Newest activity first is the default so stalled deals do not sink.">
           <Select
             id="sort"
             value={sort}

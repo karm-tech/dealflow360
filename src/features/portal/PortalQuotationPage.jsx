@@ -82,7 +82,7 @@ function RejectDialog({ open, isBusy, onClose, onConfirm }) {
         </>
       }
     >
-      <Field label="Your reasons" htmlFor="reject-reason">
+      <Field label="Your reasons" htmlFor="reject-reason" tooltip="Sent back to the sales team with the quotation. Required to decline.">
         <Textarea
           id="reject-reason"
           rows={4}
@@ -219,6 +219,7 @@ export function PortalQuotationPage() {
                     <p className="font-medium text-sand-900">{line.productName}</p>
                     <p className="figure text-xs text-sand-600">
                       {line.sku}
+                      {line.variantLabel && ` · ${line.variantLabel}`}
                       {line.planName && ` · billed ${line.planName.toLowerCase()}`}
                     </p>
                   </TD>

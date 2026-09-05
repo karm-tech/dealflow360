@@ -69,7 +69,7 @@ export function PaymentModal({ open, onClose, invoice, onSaved }) {
       }
     >
       <div className="space-y-3">
-        <Field label="Method" htmlFor="method">
+        <Field label="Method" htmlFor="method" tooltip="How the money arrived. Does not change how much is applied.">
           <Select id="method" value={method} onChange={(event) => setMethod(event.target.value)}>
             {PAYMENT_METHODS.map((value) => (
               <option key={value} value={value}>
@@ -83,6 +83,7 @@ export function PaymentModal({ open, onClose, invoice, onSaved }) {
           label="Amount"
           htmlFor="amount"
           hint="Less than the outstanding amount leaves the invoice part paid."
+          tooltip="Status is recalculated from the sum of payments. Overpaying is refused."
         >
           <Input
             id="amount"
@@ -94,7 +95,7 @@ export function PaymentModal({ open, onClose, invoice, onSaved }) {
           />
         </Field>
 
-        <Field label="Reference" htmlFor="reference" hint="Transaction or cheque number, if there is one.">
+        <Field label="Reference" htmlFor="reference" hint="Transaction or cheque number, if there is one." tooltip="Optional bank or cheque reference stored on the payment.">
           <Input
             id="reference"
             value={reference}
@@ -103,7 +104,7 @@ export function PaymentModal({ open, onClose, invoice, onSaved }) {
           />
         </Field>
 
-        <Field label="Received on" htmlFor="paidAt">
+        <Field label="Received on" htmlFor="paidAt" tooltip="When the money arrived. Overdue is measured from the invoice due date, not this.">
           <Input
             id="paidAt"
             type="date"

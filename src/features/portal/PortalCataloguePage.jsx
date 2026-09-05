@@ -22,10 +22,15 @@ import { useBasket } from "./BasketProvider";
 // fully specified line in the basket.
 function ProductRow({ product, onAdd }) {
   const [qty, setQty] = useState(1);
+  const [variantId, setVariantId] = useState("");
   const [justAdded, setJustAdded] = useState(false);
+  const variants = product.variants || [];
+  const variant = variants.find((row) => String(row.id) === variantId) || null;
+  const price = product.price + (variant?.extraPrice || 0);
 
   function handleAdd() {
-    onAdd(product, qty);
+    if (variants.length > 0 && !variant) return;
+    onAdd(product, qty, variant);
     setQty(1);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1200);
@@ -38,7 +43,27 @@ function ProductRow({ product, onAdd }) {
         <p className="figure mt-0.5 text-xs text-sand-600">
           {product.sku} · {product.category}
         </p>
+        {product.description && (
+          <p className="mt-1 text-sm text-sand-600">{product.description}</p>
+        )}
       </div>
+
+      {variants.length > 0 && (
+        <Select
+          value={variantId}
+          aria-label={`Variant of ${product.name}`}
+          onChange={(event) => setVariantId(event.target.value)}
+          className="!w-44"
+        >
+          <option value="">Choose variant…</option>
+          {variants.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.attribute}: {row.value}
+              {row.extraPrice ? ` (+${formatMoney(row.extraPrice)})` : ""}
+            </option>
+          ))}
+        </Select>
+      )}
 
       {product.billingType === "RECURRING" && (
         <Badge className="gap-1 font-normal">
@@ -48,7 +73,7 @@ function ProductRow({ product, onAdd }) {
       )}
 
       <p className="figure w-28 text-right text-base text-sand-900">
-        {formatMoney(product.price)}
+        {formatMoney(price)}
         <span className="block text-xs text-sand-500">per {product.unit}</span>
       </p>
 
@@ -65,6 +90,7 @@ function ProductRow({ product, onAdd }) {
         size="sm"
         variant={justAdded ? "secondary" : "primary"}
         icon={justAdded ? Check : Plus}
+        disabled={variants.length > 0 && !variantId}
         onClick={handleAdd}
       >
         {justAdded ? "Added" : "Add"}
@@ -100,8 +126,8 @@ export function PortalCataloguePage() {
     placeholderData: (previous) => previous,
   });
 
-  function handleAdd(product, qty) {
-    add(product, qty);
+  function handleAdd(product, qty, variant) {
+    add(product, qty, variant);
     toast(`${product.name} × ${qty} added to your request`);
   }
 
@@ -125,7 +151,7 @@ export function PortalCataloguePage() {
       </header>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Search" htmlFor="portal-search">
+        <Field label="Search" htmlFor="portal-search" tooltip="Matches product name or SKU in the catalogue you can request.">
           <SearchField
             id="portal-search"
             value={search}
@@ -134,7 +160,7 @@ export function PortalCataloguePage() {
           />
         </Field>
 
-        <Field label="Category" htmlFor="portal-category">
+        <Field label="Category" htmlFor="portal-category" tooltip="Narrows the catalogue. Prices shown are already your tier.">
           <Select
             id="portal-category"
             value={categoryId}

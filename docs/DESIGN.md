@@ -219,7 +219,7 @@ of three beside "Source order" is wrong; it is three *shipments*.
 
 App-level pieces live one level up in `src/components`: `Layout`, `PortalLayout`,
 `InstanceMarker` (the demo rail and the mode chip), `PageHeader`,
-`PhasePlaceholder`, `Wordmark`.
+`Wordmark`.
 
 ---
 

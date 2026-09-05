@@ -120,7 +120,7 @@ function CustomerDialog({ open, customer, onClose }) {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field label="Company name" htmlFor="customer-name">
+          <Field label="Company name" htmlFor="customer-name" tooltip="The buying company. Quotations and the portal are scoped to this record.">
             <Input
               id="customer-name"
               autoFocus
@@ -130,7 +130,7 @@ function CustomerDialog({ open, customer, onClose }) {
           </Field>
         </div>
 
-        <Field label="Email" htmlFor="customer-email" hint="Where quotations are sent.">
+        <Field label="Email" htmlFor="customer-email" hint="Where quotations are sent." tooltip="Used on send and on PDFs. A portal login can use a different address.">
           <Input
             id="customer-email"
             type="email"
@@ -139,7 +139,7 @@ function CustomerDialog({ open, customer, onClose }) {
           />
         </Field>
 
-        <Field label="Phone" htmlFor="customer-phone">
+        <Field label="Phone" htmlFor="customer-phone" tooltip="Shown on the quotation header as the contact number.">
           <Input
             id="customer-phone"
             value={form.phone}
@@ -147,7 +147,7 @@ function CustomerDialog({ open, customer, onClose }) {
           />
         </Field>
 
-        <Field label="City" htmlFor="customer-city">
+        <Field label="City" htmlFor="customer-city" tooltip="Used when choosing a warehouse split and on the customer list.">
           <Input
             id="customer-city"
             value={form.city}
@@ -155,7 +155,7 @@ function CustomerDialog({ open, customer, onClose }) {
           />
         </Field>
 
-        <Field label="State" htmlFor="customer-state">
+        <Field label="State" htmlFor="customer-state" tooltip="Region for this company. Does not change tax on its own.">
           <Input
             id="customer-state"
             value={form.state}
@@ -168,6 +168,7 @@ function CustomerDialog({ open, customer, onClose }) {
             label="Tier"
             htmlFor="customer-tier"
             hint={tier ? `Discount ceiling ${tier.maxDiscountPct}%.` : undefined}
+            tooltip="The customer-wide discount ceiling. A category ceiling can still be stricter on a line."
           >
             <Select
               id="customer-tier"
@@ -245,7 +246,7 @@ export function CustomersListPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Search" htmlFor="search">
+        <Field label="Search" htmlFor="search" tooltip="Matches company name or email.">
           <SearchField
             id="search"
             value={search}

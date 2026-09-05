@@ -1,17 +1,39 @@
 import { forwardRef } from "react";
+import { CircleHelp } from "lucide-react";
+
+// Hover / keyboard help on the label. Kept out of the hint so a short format
+// note can sit under the control while the longer explanation stays on demand.
+export function FieldHelp({ text }) {
+  if (!text) return null;
+
+  return (
+    <span className="group/tip relative ml-1 inline-flex align-middle">
+      <button
+        type="button"
+        className="rounded-full text-sand-400 transition-colors hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-500/30"
+        aria-label={text}
+      >
+        <CircleHelp className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute bottom-[calc(100%+6px)] left-1/2 z-50 w-52 -translate-x-1/2 rounded-md bg-sand-900 px-2.5 py-1.5 text-left text-xs font-normal leading-snug text-white opacity-0 shadow-md group-hover/tip:visible group-hover/tip:opacity-100 group-focus-within/tip:visible group-focus-within/tip:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
 
 // Wraps one control with its label, hint and error. Screens should not
 // hand-write a <label>.
-//
-//   <Field label="Email" error={errors.email?.message}>
-//     <Input id="email" {...register("email")} />
-//   </Field>
-export function Field({ label, htmlFor, hint, error, children }) {
+export function Field({ label, htmlFor, hint, tooltip, error, children }) {
   return (
     <div className="space-y-1.5">
       {label && (
-        <label htmlFor={htmlFor} className="block text-sm font-medium text-sand-700">
+        <label htmlFor={htmlFor} className="inline-flex items-center text-sm font-medium text-sand-700">
           {label}
+          <FieldHelp text={tooltip} />
         </label>
       )}
       {children}

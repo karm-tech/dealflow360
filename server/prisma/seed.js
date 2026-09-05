@@ -3,8 +3,12 @@
 // so the detectors have to find it themselves.
 
 import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import { demoDb, liveDb, disconnectAll } from "../src/lib/prisma.js";
+import { UPLOADS_DIR } from "../src/lib/uploads.js";
 import {
   ROLES,
   QUOTATION_STATUS,
@@ -108,6 +112,15 @@ function smtpFromEnv() {
   };
 }
 
+// Copied into uploads so a reseed always restores the same file the PDFs read.
+function installCompanyLogo() {
+  const source = path.join(path.dirname(fileURLToPath(import.meta.url)), "assets", "company-logo.png");
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  const filename = `logo-${mode}.png`;
+  fs.copyFileSync(source, path.join(UPLOADS_DIR, filename));
+  return `/uploads/${filename}`;
+}
+
 async function createSettings() {
   await db.settings.create({
     data: {
@@ -118,6 +131,14 @@ async function createSettings() {
       minQuotesForRepAverage: 3,
       financeApprovalOveragePoints: 10,
       defaultShippingCost: 250,
+      companyName: "DealFlow360",
+      companyAddress: "401 Iscon Centre, S G Highway, Ahmedabad 380015",
+      companyGstin: "24AABCU9603R1ZM",
+      companyPhone: "+91 79 4000 3600",
+      companyEmail: "sales@dealflow360.test",
+      companyWebsite: "https://dealflow360.test",
+      documentFooter: "Payment within 30 days. Goods remain our property until paid for in full.",
+      logoPath: installCompanyLogo(),
       ...smtpFromEnv(),
     },
   });
@@ -170,6 +191,7 @@ async function createProducts(categories) {
       name: "Laptop Pro 14",
       sku: "HW-LAP-14",
       categoryId: categories.hardware.id,
+      description: "14-inch business laptop. RAM variants add to the list price.",
       salesPrice: 60000,
       cost: 44000,
       isStockable: true,
@@ -180,6 +202,7 @@ async function createProducts(categories) {
       name: "Docking Station",
       sku: "HW-DOCK-01",
       categoryId: categories.hardware.id,
+      description: "USB-C dock with dual display and gigabit ethernet.",
       salesPrice: 8000,
       cost: 5200,
       isStockable: true,
@@ -203,7 +226,6 @@ async function createProducts(categories) {
       salesPrice: 2000,
       cost: 900,
       isStockable: true,
-      isReturnable: true,
       defaultBillingType: BILLING_TYPE.RECURRING,
       defaultPlanId: "MONTHLY",
     },
@@ -251,6 +273,7 @@ async function createProducts(categories) {
       name: "Onsite Setup Service",
       sku: "SV-SETUP",
       categoryId: categories.service.id,
+      description: "One-day onsite installation and handover for hardware orders.",
       salesPrice: 40000,
       cost: 22000,
       isStockable: false,
@@ -279,6 +302,7 @@ async function createProducts(categories) {
       name: "AMC Support (per seat)",
       sku: "SB-AMC",
       categoryId: categories.subscription.id,
+      description: "Remote support per seat. 24x7 cover costs extra.",
       unit: "month",
       salesPrice: 800,
       cost: 300,
@@ -867,6 +891,176 @@ async function createQuotations(customers, users, products) {
   return { acme, waiting, splitOrder, backorderOrder, mixedOrder };
 }
 
+const VOLUME_COMPANIES = [
+  "Helix Motors", "Nova Textiles", "Orion Pharma", "Pinnacle Steel", "Quanta Labs",
+  "Ridge Logistics", "Summit Hotels", "Tidal Energy", "Umber Foods", "Vertex Media",
+  "Willow Bank", "Yarrow Clinics", "Zenith Apparel", "Amber Freight", "Beacon Glass",
+  "Cedar Electronics", "Dune Cement", "Echo Packaging", "Flint Tools", "Grove Dairy",
+  "Harbor Shipping", "Ivory Papers", "Jasper Mines", "Kite Aviation", "Lumen Power",
+  "Maple Furniture", "Nimbus Cloud Co", "Oakridge Schools", "Pearl Jewellery", "Quartz Interiors",
+  "Riverdale Farms", "Slate Architects", "Terra Builders", "Upland Coffee", "Vale Chemicals",
+  "Wickham Motors",
+];
+
+const VOLUME_CITIES = [
+  ["Mumbai", "Maharashtra"],
+  ["Jaipur", "Rajasthan"],
+  ["Hyderabad", "Telangana"],
+  ["Chennai", "Tamil Nadu"],
+  ["Kochi", "Kerala"],
+  ["Lucknow", "Uttar Pradesh"],
+  ["Bhopal", "Madhya Pradesh"],
+  ["Chandigarh", "Punjab"],
+  ["Vadodara", "Gujarat"],
+  ["Nagpur", "Maharashtra"],
+];
+
+async function createVolumeCustomers() {
+  const extra = [];
+
+  for (let index = 0; index < VOLUME_COMPANIES.length; index += 1) {
+    const [city, state] = VOLUME_CITIES[index % VOLUME_CITIES.length];
+    const customer = await db.customer.create({
+      data: {
+        name: VOLUME_COMPANIES[index],
+        email: `accounts.v${String(index + 1).padStart(2, "0")}@volume.test`,
+        phone: `079-4000-${String(1000 + index).slice(-4)}`,
+        city,
+        state,
+        tierId: ["BRONZE", "SILVER", "GOLD"][index % 3],
+      },
+    });
+    extra.push(customer);
+  }
+
+  return extra;
+}
+
+const VOLUME_STATUSES = [
+  { status: QUOTATION_STATUS.DRAFT, idle: 1 },
+  { status: QUOTATION_STATUS.DRAFT, idle: 16 },
+  { status: QUOTATION_STATUS.PENDING_APPROVAL, idle: 2, pending: true },
+  { status: QUOTATION_STATUS.PENDING_APPROVAL, idle: 9, pending: true },
+  { status: QUOTATION_STATUS.APPROVED, idle: 1 },
+  { status: QUOTATION_STATUS.SENT, idle: 3 },
+  { status: QUOTATION_STATUS.SENT, idle: 22 },
+  { status: QUOTATION_STATUS.UNDER_NEGOTIATION, idle: 5 },
+  { status: QUOTATION_STATUS.CONFIRMED, idle: 18, confirmed: true },
+  { status: QUOTATION_STATUS.CANCELLED, idle: 40 },
+  { status: QUOTATION_STATUS.REJECTED, idle: 33 },
+];
+
+const VOLUME_BASKETS = [
+  ["HW-MOUSE"],
+  ["HW-CASE", "HW-SCRN"],
+  ["SV-TRAIN"],
+  ["SB-CLOUD"],
+  ["SB-BACKUP"],
+  ["SV-WARR-2Y"],
+  ["HW-DOCK-01", "HW-MOUSE"],
+  ["SB-AMC"],
+];
+
+// Fills lists, charts and reports. Hand-built quotes above stay the ones that
+// prove a specific rule; these just give every stage and mix a real population.
+async function createVolumeBook({ namedCustomers, extraCustomers, users, products }) {
+  const reps = [users["rep@dealflow360.test"], users["rep2@dealflow360.test"]];
+  const book = [...Object.values(namedCustomers), ...extraCustomers];
+  const billed = [];
+
+  for (let index = 0; index < 280; index += 1) {
+    const scenario = VOLUME_STATUSES[index % VOLUME_STATUSES.length];
+    const customer = book[index % book.length];
+    const rep = reps[index % reps.length];
+    const skus = VOLUME_BASKETS[index % VOLUME_BASKETS.length];
+    const discount = [0, 3, 5, 8, 12, 18][index % 6];
+    const activityAt = daysAgo(scenario.idle + (index % 8));
+    const extra = {};
+
+    if (scenario.pending) extra.approvalPendingSince = activityAt;
+    if (scenario.confirmed) extra.confirmedAt = addDays(activityAt, 1);
+    if (
+      scenario.status === QUOTATION_STATUS.CANCELLED ||
+      scenario.status === QUOTATION_STATUS.REJECTED
+    ) {
+      extra.cancelReason = "Budget withdrawn";
+    }
+
+    const quotation = await createQuotation({
+      number: `DF-Q-${2001 + index}`,
+      customer,
+      rep,
+      status: scenario.status,
+      activityAt,
+      extra,
+      lines: skus.map((sku) => {
+        const product = products[sku];
+        const recurring = product.defaultBillingType === BILLING_TYPE.RECURRING;
+        return line(
+          product,
+          1 + (index % 4),
+          product.salesPrice,
+          discount,
+          product.defaultBillingType,
+          recurring ? product.defaultPlanId : null,
+          recurring ? activityAt : null,
+        );
+      }),
+    });
+
+    if (scenario.pending) {
+      await db.approvalStep.create({
+        data: {
+          quotationId: quotation.id,
+          sequence: 1,
+          role: ROLES.SALES_MANAGER,
+          status: APPROVAL_STATUS.PENDING,
+          createdAt: activityAt,
+        },
+      });
+    }
+
+    // Service and subscription confirms only — hardware stock is reserved for
+    // the split and backorder quotes the fulfilment screens walk through.
+    if (
+      scenario.confirmed &&
+      index % 7 === 0 &&
+      skus.every((sku) => !products[sku].isStockable)
+    ) {
+      billed.push(quotation);
+    }
+  }
+
+  const financeId = users["finance@dealflow360.test"].id;
+  for (const quotation of billed) {
+    const full = await db.quotation.findUnique({
+      where: { id: quotation.id },
+      include: {
+        customer: true,
+        rep: true,
+        lines: { include: { product: true, plan: true } },
+      },
+    });
+    await billConfirmedOrder(db, mode, full, financeId);
+    await dateInvoicesFrom(full.id, full.confirmedAt || full.createdAt);
+
+    if (quotation.id % 2 === 0) {
+      const invoice = await db.invoice.findFirst({ where: { quotationId: full.id } });
+      if (!invoice) continue;
+      await db.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          method: "BANK",
+          amount: invoice.total,
+          reference: `NEFT-V${invoice.id}`,
+          paidAt: addDays(invoice.issueDate, 8),
+        },
+      });
+      await refreshInvoiceStatus(db, invoice.id);
+    }
+  }
+}
+
 // --- billing ----------------------------------------------------------------
 
 // Agreeing an order is what takes the stock and raises the billing, so the demo
@@ -1007,6 +1201,7 @@ async function seedDemo() {
 
   console.log("Seeding people...");
   const customers = await createCustomers();
+  const extraCustomers = await createVolumeCustomers();
   const users = await createUsers(customers);
   await createAccessRequests();
 
@@ -1022,6 +1217,14 @@ async function seedDemo() {
     users,
     products,
   );
+
+  console.log("Seeding the rest of the order book...");
+  await createVolumeBook({
+    namedCustomers: customers,
+    extraCustomers,
+    users,
+    products,
+  });
 
   // Run the real allocation rather than writing shipments by hand, so the
   // seeded split is the same one the app would produce.
@@ -1089,7 +1292,9 @@ async function main() {
     quotations: await db.quotation.count(),
     quotationLines: await db.quotationLine.count(),
     invoices: await db.invoice.count(),
+    payments: await db.payment.count(),
     subscriptions: await db.subscription.count(),
+    fulfilments: await db.fulfilment.count(),
   };
 
   console.log("\nSeed complete:");

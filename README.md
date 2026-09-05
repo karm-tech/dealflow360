@@ -1,140 +1,201 @@
 # DealFlow360
 
-Self-governing B2B sales operations platform — quotation to cash with automated discount approval routing, multi-warehouse fulfilment, hybrid billing and customer portal negotiation.
+Self-governing B2B sales operations — quotation to cash with discount approval routing, multi-warehouse fulfilment, hybrid billing, and a customer portal.
 
-Most sales tools stop at "create a quote, confirm an order, invoice it". DealFlow360 enforces
-pricing discipline, reacts to real stock, keeps one-time and recurring lines reconciled on a single
-order, and gives the customer a living document to negotiate instead of a static PDF.
+Most sales tools stop at “create a quote, confirm an order, invoice it”. DealFlow360 enforces pricing discipline, reacts to real stock, keeps one-time and recurring lines on a single order, and gives the customer a living document instead of a static PDF.
+
+![Deal Health dashboard](docs/screenshots/02-dashboard.png)
+
+---
+
+## What it does
+
+- **Quotation builder** — lines, variants, captured unit prices, discount ceilings, blended risk, and approval routing
+- **Quote-to-order loop** — the same record moves `Draft → Pending approval → Approved → Sent → Confirmed`; becoming an order does not copy anything
+- **Fulfilment** — stockable lines split across warehouses or go to backorder; services skip the warehouse
+- **Hybrid billing** — one-time invoices and subscriptions from the same confirmed order, with proration when a period starts mid-cycle
+- **Customer portal** — browse the catalogue, request a quotation, approve or decline a sent quote
+- **Deal health** — live scores from stall, discount anomaly, delivery slip, approval wait, and customer history
+- **Reports** — the same filters as Deal Health, exportable as PDF or Excel
+- **Configuration** — company profile, mail / outbox, ceilings, approval bands, price lists, warehouses
+
+Every business rule is enforced on the server. Hiding a button is a convenience, never the control.
+
+---
+
+## Screenshots
+
+### Demo sign-in
+
+One-click accounts for every role. `/demo` uses sample data; `/login` is the live instance.
+
+![Demo sign-in](docs/screenshots/01-demo-signin.png)
+
+### Quotations
+
+The full order book — drafts through confirmed orders — with search, stage and sort.
+
+![Quotations list](docs/screenshots/03-quotations.png)
+
+### Quotation builder
+
+Customer, dates, lines and totals. Hover the help mark on a field for what it controls.
+
+![Quotation builder](docs/screenshots/04-quotation.png)
+
+### Reports
+
+KPIs and a filterable table. Export PDF or Excel using the filters on screen.
+
+![Reports](docs/screenshots/05-reports.png)
+
+### Customer portal
+
+Tier-priced catalogue. A customer can add lines and send a request; sent quotations appear under **My quotations**.
+
+![Customer portal](docs/screenshots/06-portal.png)
+
+---
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| App | React, Vite, Tailwind, React Router, TanStack Query |
+| API | Node, Express, Prisma, SQLite |
+| Realtime | Socket.io |
+| Auth | JWT + bcrypt |
+| Mail | Nodemailer, or an on-screen outbox when SMTP is not set |
+
+One language front to back. SQLite needs no database server, so the app runs on any laptop.
 
 ---
 
 ## Run it
 
-Requires Node 18 or newer. Nothing else — the database is a single SQLite file, so there is no
-database server to install and the app runs with no internet connection.
+Requires **Node 18** or newer.
 
 ```bash
 git clone https://github.com/karm-tech/dealflow360.git
 cd dealflow360
 npm install
 cp .env.example .env          # Windows: copy .env.example .env
-npm run setup                 # creates both databases and loads their data
+npm run setup                 # migrate both databases and load their data
 npm run dev                   # API on :4000, app on :5173
 ```
 
 Open **http://localhost:5173**.
 
-## Two databases: demo and live
+### Admin login
 
-Each instance has its own sign-in page: `/login` for live, `/demo` for the sample data.
+The same admin exists on both instances. Password is **`demo1234`** everywhere.
 
-| | **Demo** (`demo.db`) | **Live** (`dev.db`) |
-|---|---|---|
-| Holds | Sample customers, quotations, history | Master data only — an empty order book |
-| For | Exploring and demonstrating | Real work |
-| Accounts | The full list below | One admin; everyone else requests access |
+| | Address | Email | Password |
+|---|---|---|---|
+| **Demo** (sample data) | http://localhost:5173/demo | `admin@dealflow360.test` | `demo1234` |
+| **Live** (empty order book) | http://localhost:5173/login | `admin@dealflow360.test` | `demo1234` |
 
-They are two separate SQLite files opened by two separate connections. **Which one a session uses is
-carried inside the signed login token**, not in a header or a setting, so a demo session cannot
-reach live records by sending a different request — it would have to log in again. In demo mode a
-thin rail sits above the header and the header carries a "Demo data" chip, so it is always clear
-which database you are changing.
+Other demo roles are listed under [Demo accounts](#demo-accounts).
 
-`npm run setup` is `prisma generate` + `npm run migrate:all` (migrates both files) + both seeds.
-To reload just the demo data, run `npm run seed` again — it clears and rewrites everything.
-
-## Signing up is a request, not an account
-
-Internal signup is supported, but this system governs discount approvals, so self-created sales
-accounts are not allowed. Signing up creates a **pending request with no role and no login
-token**. An admin opens **Access Requests**, picks the role, and
-approves or declines with a reason. The role the admin chooses is what the person gets — what they
-asked for on the form is recorded but grants nothing.
-
-Both decisions are written to the audit trail and queued to the email outbox.
-
-## Demo accounts
-
-Every account uses the password **`demo1234`**. Open **/demo** and click any role to sign straight
-in, or type the credentials by hand on the same page.
-
-| Role | Email | Sees |
-|---|---|---|
-| Admin | `admin@dealflow360.test` | Everything, including back-end configuration |
-| Sales Rep | `rep@dealflow360.test` | Quotations, pipeline, fulfilment |
-| Sales Rep | `rep2@dealflow360.test` | A second rep, so the pipeline is not all one person |
-| Sales Manager | `manager@dealflow360.test` | Approvals and the deal health dashboard |
-| Finance | `finance@dealflow360.test` | Second-level approvals, billing |
-| Customer | `acme@portal.test` | The customer portal only — their own quotations |
-
-Other portal logins: `beta@portal.test`, `cyrus@portal.test`, `delta@portal.test`.
-
-## Scripts
+### Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Runs the API and the web app together |
-| `npm run dev:api` | API only, on port 4000 |
-| `npm run dev:web` | Web app only, on port 5173 |
+| `npm run dev` | API and web app together |
+| `npm run dev:api` | API only, port 4000 |
+| `npm run dev:web` | Web app only, port 5173 |
 | `npm run setup` | Generate client, migrate both databases, seed both |
-| `npm run migrate:all` | Apply migrations to the demo and live databases |
-| `npm run seed` | Reload the demo database (sample data) |
-| `npm run seed:live` | Reset the live database to master data and one admin |
+| `npm run migrate:all` | Apply migrations to demo and live |
+| `npm run seed` | Reload the demo database |
+| `npm run seed:live` | Reset live to master data and one admin |
 | `npm run build` | Production build of the frontend |
+
+---
+
+## Demo and live
+
+Each instance has its own sign-in page: **`/login`** for live, **`/demo`** for sample data.
+
+| | **Demo** (`demo.db`) | **Live** (`dev.db`) |
+|---|---|---|
+| Holds | Catalogue, customers, a full order book | Master data only — empty order book |
+| For | Exploring the product | Real work |
+| Accounts | The list below | One admin; everyone else requests access |
+
+They are two SQLite files on two connections. **Which one a session uses is inside the signed login token**, so a demo session cannot reach live records by sending a different header.
+
+`npm run setup` is `prisma generate` + `migrate:all` + both seeds. `npm run seed` clears and rewrites demo data only.
+
+### Demo accounts
+
+Every account uses the password **`demo1234`**. Open **/demo** and click a role, or type the credentials.
+
+| Role | Email | Sees |
+|---|---|---|
+| Admin | `admin@dealflow360.test` | Everything, including configuration |
+| Sales Rep | `rep@dealflow360.test` | Quotations, pipeline, fulfilment |
+| Sales Rep | `rep2@dealflow360.test` | A second book, so the pipeline is not one person |
+| Sales Manager | `manager@dealflow360.test` | Approvals and deal health |
+| Finance | `finance@dealflow360.test` | Second-level approvals, billing |
+| Customer | `acme@portal.test` | Portal only — Acme’s quotations |
+
+Other portal logins: `beta@portal.test`, `cyrus@portal.test`, `delta@portal.test`, `gamma@portal.test`.
+
+Internal signup files a **pending request with no role and no token**. An admin opens **Access Requests**, picks the role, and approves or declines.
+
+---
 
 ## How it is put together
 
 ```
 src/                     Frontend (React + Vite + Tailwind)
-  app/                   Auth state and route guards
-  components/            Layout, shared UI, loading and empty states
+  app/                   Auth state, route guards, realtime
+  components/            Layout and shared UI
   features/              One folder per module
-  lib/                   API client, formatting, shared constants
+  lib/                   API client, formatting, constants
 server/                  Backend (Express + Prisma + SQLite)
-  src/routes/            One file per resource (see routes/README.md)
+  src/routes/            One file per resource
   src/middleware/        Login and role guards
-  src/lib/               Database client, tokens, constants
+  src/lib/               Pricing, risk, fulfilment, billing, health
   prisma/                schema.prisma and seed.js
 ```
 
-**Every business rule is enforced on the server.** The browser shows and asks; the server decides
-and validates. Hiding a button is a convenience, never the control.
+```
+Quote ──► Risk + ceilings ──► Approval (if needed) ──► Send
+  │                                                      │
+  │                                                      ▼
+  │                                              Customer portal
+  │                                                      │
+  └────────────── Confirmed order ◄──────────────────────┘
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+     Warehouse split            Hybrid bill
+     / backorder                invoice + subscription
+            │                         │
+            └────────────┬────────────┘
+                         ▼
+                   Deal health + reports
+```
 
-### Three ideas worth knowing before reading the code
+**A quotation and an order are the same record.** Confirming it changes the status; nothing is copied.
 
-**A quotation and an order are the same record.** There is no separate order table. A quotation
-moves through `DRAFT → PENDING_APPROVAL → APPROVED → SENT → UNDER_NEGOTIATION → CONFIRMED`, and
-becoming an order simply means reaching `CONFIRMED`. Nothing is copied, so the deal keeps its whole
-history — which is what makes the negotiation loop work: a counter-offer just moves the record
-backwards through its own statuses.
+**Billing and fulfilment are two different fields.** `QuotationLine.billingType` says how it is charged. `Product.isStockable` says whether it needs a warehouse. They are independent: a rented printer is recurring *and* stockable; a support plan is neither.
 
-**Billing and fulfilment are decided by two different fields.** `QuotationLine.billingType` says
-whether a line is charged once or every period. `Product.isStockable` says whether it needs a
-warehouse. They are independent: a rented printer is recurring *and* stockable, a support plan is
-neither. A single order can therefore mix one-time products and subscriptions, and only the
-stockable lines ever reach a warehouse.
+**Routes never import a database client.** They use `req.db`, set from the `db` claim in the login token. That is what keeps demo and live apart.
 
-**Routes never import a database client.** They use `req.db`, which the auth middleware sets from
-the `db` claim in the login token. That is what keeps demo and live apart. See
-`server/src/routes/README.md`.
+---
 
-## What is implemented
+## Environment
 
-| Area | State |
+Copy `.env.example` to `.env`. The defaults run without internet.
+
+| Variable | Purpose |
 |---|---|
-| Data model, seed data, SQLite setup | **Done** |
-| Authentication, JWT, role-based access | **Done** |
-| Access requests with admin approval | **Done** |
-| Separate demo and live databases | **Done** |
-| App shell, navigation, route guards, customer portal shell | **Done** |
-| Design system and shared UI components | **Done** |
-| Quotation builder and the quote-to-order loop | Next |
-| Blended discount risk score and approval routing | Planned |
-| Warehouse split and backorders | Planned |
-| Hybrid billing, subscriptions, proration | Planned |
-| Customer portal negotiation | Planned |
-| Back-end configuration screens | Planned |
-| Deal health dashboard and reports | Planned |
+| `DATABASE_URL` | Live SQLite file (`dev.db`) |
+| `DEMO_DATABASE_URL` | Demo SQLite file (`demo.db`) |
+| `JWT_SECRET` | Signs login tokens — change this for anything real |
+| `PORT` / `CLIENT_ORIGIN` | API port and trusted browser origin |
+| `SMTP_*` / `MAIL_FROM` | Optional. Leave `SMTP_HOST` blank to queue mail in the outbox |
 
-Screens that are not built yet already have their routes and role guards in place, and each one
-states what it will contain rather than pretending to work.
+SMTP values in `.env` are the seed defaults. After that, **Mail settings** is what the app reads.

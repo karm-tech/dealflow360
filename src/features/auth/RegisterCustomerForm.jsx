@@ -32,6 +32,7 @@ export function RegisterCustomerForm({ mode, onDone }) {
       <Field
         label="Company name"
         htmlFor="companyName"
+        tooltip="Creates the customer record quotations will be raised against."
         error={formState.errors.companyName?.message}
       >
         <Input
@@ -46,7 +47,12 @@ export function RegisterCustomerForm({ mode, onDone }) {
         />
       </Field>
 
-      <Field label="Your name" htmlFor="portal-name" error={formState.errors.name?.message}>
+      <Field
+        label="Your name"
+        htmlFor="portal-name"
+        tooltip="The person who will sign in to the customer portal."
+        error={formState.errors.name?.message}
+      >
         <Input
           id="portal-name"
           type="text"
@@ -59,7 +65,12 @@ export function RegisterCustomerForm({ mode, onDone }) {
         />
       </Field>
 
-      <Field label="Work email" htmlFor="portal-email" error={formState.errors.email?.message}>
+      <Field
+        label="Work email"
+        htmlFor="portal-email"
+        tooltip="Portal login and the address quotations are sent to."
+        error={formState.errors.email?.message}
+      >
         <Input
           id="portal-email"
           type="email"
@@ -69,7 +80,12 @@ export function RegisterCustomerForm({ mode, onDone }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="portal-password" error={formState.errors.password?.message}>
+      <Field
+        label="Password"
+        htmlFor="portal-password"
+        tooltip="At least 8 characters. Signs this buyer into the portal immediately."
+        error={formState.errors.password?.message}
+      >
         <Input
           id="portal-password"
           type="password"
@@ -83,11 +99,11 @@ export function RegisterCustomerForm({ mode, onDone }) {
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Phone" htmlFor="portal-phone" hint="Optional">
+        <Field label="Phone" htmlFor="portal-phone" hint="Optional" tooltip="Stored on the company record. Not required to register.">
           <Input id="portal-phone" type="tel" autoComplete="tel" {...register("phone")} />
         </Field>
 
-        <Field label="City" htmlFor="portal-city" hint="Optional">
+        <Field label="City" htmlFor="portal-city" hint="Optional" tooltip="Helps the rep plan fulfilment when a quotation is raised.">
           <Input
             id="portal-city"
             type="text"

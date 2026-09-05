@@ -14,6 +14,7 @@ import { RealtimeProvider } from "./app/RealtimeProvider";
 import { NoAccessPage, NotFoundPage } from "./features/misc/NoAccessPage";
 import { ConfigurationPage } from "./features/admin/ConfigurationPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { ReportsPage } from "./features/dashboard/ReportsPage";
 import { CompanySettingsPage } from "./features/admin/CompanySettingsPage";
 import { MailSettingsPage } from "./features/admin/MailSettingsPage";
 import { CeilingsPage } from "./features/admin/CeilingsPage";
@@ -37,7 +38,7 @@ import { PipelinePage } from "./features/quotations/PipelinePage";
 import { CustomerDetailPage } from "./features/catalogue/CustomerDetailPage";
 import { ProductDetailPage } from "./features/catalogue/ProductDetailPage";
 import { ProductsListPage } from "./features/catalogue/ProductsListPage";
-import { ROLES } from "./lib/constants";
+import { homePathFor, ROLES } from "./lib/constants";
 
 const STAFF = [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE];
 
@@ -47,9 +48,7 @@ function HomeRedirect() {
 
   if (isLoading) return <Spinner label="Starting DealFlow360" />;
   if (!user) return <Navigate to="/login" replace />;
-  // Staff land on the dashboard: it answers "what needs me first" before
-  // showing anything else. Customers never enter the workspace.
-  return <Navigate to={user.role === ROLES.CUSTOMER ? "/portal" : "/dashboard"} replace />;
+  return <Navigate to={homePathFor(user.role)} replace />;
 }
 
 export function App() {
@@ -115,8 +114,7 @@ export function App() {
             </RequireRole>
           }
         />
-        {/* A rep reaches billing for their own orders; the server scopes the
-            rows and refuses anyone else's. Changing any of it is finance work. */}
+        {/* Reps see their own billing; only finance can change it. */}
         <Route
           path="/billing"
           element={
@@ -141,9 +139,9 @@ export function App() {
             </RequireRole>
           }
         />
-        {/* Every member of staff has a dashboard; the server decides whose
-            deals and which figures they are answered with. */}
+        {/* Staff landing. The server scopes whose deals are returned. */}
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route
           path="/customers"
           element={

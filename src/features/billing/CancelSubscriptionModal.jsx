@@ -53,7 +53,7 @@ export function CancelSubscriptionModal({ open, onClose, subscription, onSaved }
           money, so there is nothing to return on those.
         </p>
 
-        <Field label="Reason" htmlFor="reason" hint="Kept on the order's history.">
+        <Field label="Reason" htmlFor="reason" hint="Kept on the order's history." tooltip="Written on the order timeline. Unused prepaid days are credited.">
           <Textarea
             id="reason"
             value={reason}

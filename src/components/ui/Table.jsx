@@ -1,9 +1,4 @@
 // Wide content scrolls inside the table's own box rather than the page.
-//
-//   <Table>
-//     <THead><TR><TH>Customer</TH><TH align="right">Amount</TH></TR></THead>
-//     <TBody><TR><TD>Acme</TD><TD figure align="right">₹5,60,800</TD></TR></TBody>
-//   </Table>
 export function Table({ className = "", children }) {
   return (
     <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-sand-200 bg-surface shadow-card">

@@ -120,7 +120,7 @@ export function MailSettingsPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Field label="Host" htmlFor="smtp-host" hint="For example smtp.gmail.com.">
+              <Field label="Host" htmlFor="smtp-host" hint="For example smtp.gmail.com." tooltip="Leave empty to keep every message in the outbox without sending.">
                 <Input
                   id="smtp-host"
                   value={form.smtpHost}
@@ -130,7 +130,7 @@ export function MailSettingsPage() {
               </Field>
             </div>
 
-            <Field label="Port" htmlFor="smtp-port">
+            <Field label="Port" htmlFor="smtp-port" tooltip="587 with STARTTLS, or 465 with TLS. Must match the encryption setting.">
               <Input
                 id="smtp-port"
                 type="number"
@@ -145,6 +145,7 @@ export function MailSettingsPage() {
               label="Encryption"
               htmlFor="smtp-secure"
               hint="Port 465 uses TLS from the start; 587 upgrades to it."
+              tooltip="How the connection is secured. A mismatch with the port is the usual send failure."
             >
               <Select
                 id="smtp-secure"
@@ -156,7 +157,7 @@ export function MailSettingsPage() {
               </Select>
             </Field>
 
-            <Field label="Username" htmlFor="smtp-user">
+            <Field label="Username" htmlFor="smtp-user" tooltip="Usually the mailbox address. For Gmail this is the account email.">
               <Input
                 id="smtp-user"
                 value={form.smtpUser}
@@ -169,6 +170,7 @@ export function MailSettingsPage() {
               label="Password"
               htmlFor="smtp-password"
               hint={smtp.data.hasPassword ? "A password is saved. Type to replace it." : "Not set."}
+              tooltip="Stored on the server. Leave blank to keep the saved password."
             >
               <Input
                 id="smtp-password"
@@ -185,6 +187,7 @@ export function MailSettingsPage() {
                 label="From address"
                 htmlFor="smtp-from"
                 hint="What the customer sees as the sender."
+                tooltip="Many hosts rewrite this to the authenticated account. Keep it the same as the username for Gmail."
               >
                 <Input
                   id="smtp-from"
@@ -201,7 +204,7 @@ export function MailSettingsPage() {
           <Card>
             <CardHeader title="Send a test" subtitle="Proves the settings before a customer relies on them." />
 
-            <Field label="To" htmlFor="test-to">
+            <Field label="To" htmlFor="test-to" tooltip="Sends one test using the saved settings. The result is also written to the outbox.">
               <Input
                 id="test-to"
                 type="email"

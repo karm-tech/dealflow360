@@ -1,9 +1,4 @@
-// Tier moves the system suggests and a person decides.
-//
-// A tier is what a customer is ALLOWED to be discounted; reliability is what
-// they have EARNED. Keeping those apart is why nothing here applies itself: a
-// discount ceiling is a business decision, so the system brings the evidence and
-// a human signs it off.
+// Suggested tier moves. A person still has to apply them.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
@@ -16,10 +11,8 @@ import {
   useToast,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
-import { ROLES } from "../../lib/constants";
+import { CUSTOMER_BAND_TONES, ROLES } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
-
-const BAND_TONES = { TRUSTED: "ok", RELIABLE: "ok", NEW: "info", WATCH: "warn", RISKY: "bad" };
 
 export function TierSuggestions() {
   const { user } = useAuth();
@@ -71,7 +64,7 @@ export function TierSuggestions() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-sand-900">{row.customerName}</span>
-                  <StatusPill tone={BAND_TONES[row.band]}>
+                  <StatusPill tone={CUSTOMER_BAND_TONES[row.band]}>
                     {row.label} · {row.score}
                   </StatusPill>
                   <StatusPill tone={isPromote ? "ok" : "warn"}>

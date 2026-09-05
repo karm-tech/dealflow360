@@ -31,6 +31,7 @@ export function CompanySettingsPage() {
   const fileInput = useRef(null);
   const [form, setForm] = useState(BLANK);
   const [error, setError] = useState("");
+  const [logoUrl, setLogoUrl] = useState(null);
 
   const company = useQuery({
     queryKey: ["company"],
@@ -87,12 +88,40 @@ export function CompanySettingsPage() {
     onError: (mutationError) => setError(errorMessage(mutationError)),
   });
 
+  const logoPath = company.data?.logoPath || null;
+
+  useEffect(() => {
+    if (!logoPath) {
+      setLogoUrl(null);
+      return undefined;
+    }
+
+    // Fetched through the API client so it carries the auth header. A plain
+    // <img src="/uploads/..."> would ask the Vite origin, which has no file.
+    let objectUrl;
+    let cancelled = false;
+
+    api
+      .get("/company/logo-file", { responseType: "blob" })
+      .then((response) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(response.data);
+        setLogoUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setLogoUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [logoPath]);
+
   if (company.isLoading) return <Spinner label="Loading company details" />;
   if (company.isError) {
     return <ErrorState message={errorMessage(company.error)} onRetry={company.refetch} />;
   }
-
-  const logoPath = company.data.logoPath;
 
   return (
     <div className="animate-fadeUp">
@@ -120,7 +149,7 @@ export function CompanySettingsPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Field label="Company name" htmlFor="company-name">
+              <Field label="Company name" htmlFor="company-name" tooltip="Printed on quotations, invoices and report PDFs.">
                 <Input
                   id="company-name"
                   value={form.companyName}
@@ -130,7 +159,7 @@ export function CompanySettingsPage() {
             </div>
 
             <div className="sm:col-span-2">
-              <Field label="Address" htmlFor="company-address">
+              <Field label="Address" htmlFor="company-address" tooltip="Your registered address on documents. Not the warehouse location.">
                 <Textarea
                   id="company-address"
                   rows={2}
@@ -141,7 +170,7 @@ export function CompanySettingsPage() {
               </Field>
             </div>
 
-            <Field label="GSTIN" htmlFor="company-gstin">
+            <Field label="GSTIN" htmlFor="company-gstin" tooltip="Shown on invoices. Leave empty if it should not print.">
               <Input
                 id="company-gstin"
                 value={form.companyGstin}
@@ -150,7 +179,7 @@ export function CompanySettingsPage() {
               />
             </Field>
 
-            <Field label="Phone" htmlFor="company-phone">
+            <Field label="Phone" htmlFor="company-phone" tooltip="Contact number printed in the document header.">
               <Input
                 id="company-phone"
                 value={form.companyPhone}
@@ -158,7 +187,7 @@ export function CompanySettingsPage() {
               />
             </Field>
 
-            <Field label="Email" htmlFor="company-email">
+            <Field label="Email" htmlFor="company-email" tooltip="Shown on documents. Outbound mail still uses Mail settings.">
               <Input
                 id="company-email"
                 type="email"
@@ -167,7 +196,7 @@ export function CompanySettingsPage() {
               />
             </Field>
 
-            <Field label="Website" htmlFor="company-website">
+            <Field label="Website" htmlFor="company-website" tooltip="Optional. Printed under the company name on PDFs.">
               <Input
                 id="company-website"
                 value={form.companyWebsite}
@@ -180,6 +209,7 @@ export function CompanySettingsPage() {
                 label="Document footer"
                 htmlFor="company-footer"
                 hint="Terms or bank details, along the bottom of every page."
+                tooltip="Repeats on every PDF page. Keep it short enough to sit in the footer."
               >
                 <Textarea
                   id="company-footer"
@@ -197,8 +227,10 @@ export function CompanySettingsPage() {
           <CardHeader title="Logo" subtitle="Header and watermark on every PDF." />
 
           <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-sand-300 bg-sand-50 p-4">
-            {logoPath ? (
-              <img src={logoPath} alt="Company logo" className="max-h-24 max-w-full object-contain" />
+            {logoPath && logoUrl ? (
+              <img src={logoUrl} alt="Company logo" className="max-h-24 max-w-full object-contain" />
+            ) : logoPath ? (
+              <p className="text-center text-sm text-sand-600">Loading logo…</p>
             ) : (
               <p className="text-center text-sm text-sand-600">
                 No logo yet. Documents fall back to the company name.

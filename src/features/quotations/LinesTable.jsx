@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Minus, Percent, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import {
-  Badge,
   Button,
+  FieldHelp,
   Modal,
   RecordPicker,
   Select,
@@ -89,10 +89,30 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
       <THead>
         <TR>
           <TH>Product</TH>
-          <TH>Qty</TH>
-          <TH align="right">Unit price</TH>
-          <TH align="right">Disc %</TH>
-          <TH>Billing</TH>
+          <TH>
+            <span className="inline-flex items-center">
+              Qty
+              <FieldHelp text="Committed on blur. Stockable lines later allocate this quantity from warehouses." />
+            </span>
+          </TH>
+          <TH align="right">
+            <span className="inline-flex items-center justify-end">
+              Unit price
+              <FieldHelp text="Captured when the line is added. A later catalogue change does not rewrite it." />
+            </span>
+          </TH>
+          <TH align="right">
+            <span className="inline-flex items-center justify-end">
+              Disc %
+              <FieldHelp text="Capped by the lower of the customer tier and the product category." />
+            </span>
+          </TH>
+          <TH>
+            <span className="inline-flex items-center">
+              Billing
+              <FieldHelp text="One-time invoices on confirm. Recurring opens a subscription for this line." />
+            </span>
+          </TH>
           <TH align="right">Tax</TH>
           <TH align="right">Line total</TH>
           <TH />
@@ -105,12 +125,16 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
             <TD>
               <RecordLink to={`/products/${line.productId}`}>{line.productName}</RecordLink>
               <p className="mt-0.5 text-xs text-sand-500">
+                {line.variantLabel && <>{line.variantLabel} · </>}
                 {line.category}
                 {line.isStockable && (
                   <> · {line.onHand} on hand</>
                 )}
                 {line.isProrated && <> · first period prorated</>}
               </p>
+              {line.description && (
+                <p className="mt-0.5 text-xs text-sand-500">{line.description}</p>
+              )}
               {line.isShort && (
                 <p className="mt-1 flex items-center gap-1 text-xs font-medium text-state-warn">
                   <TriangleAlert size={12} />
@@ -239,6 +263,7 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
 // billing all chosen before anything is sent.
 export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
   const [product, setProduct] = useState(null);
+  const [variantId, setVariantId] = useState("");
   const [qty, setQty] = useState("1");
   const [discountPct, setDiscountPct] = useState("0");
   const [billingType, setBillingType] = useState("");
@@ -250,6 +275,7 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
 
   function reset() {
     setProduct(null);
+    setVariantId("");
     setQty("1");
     setDiscountPct("0");
     setBillingType("");
@@ -264,6 +290,7 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
     if (!product) return;
     onAdd({
       productId: product.id,
+      variantId: variantId ? Number(variantId) : undefined,
       qty: asked,
       discountPct: Math.min(100, Math.max(0, Number(discountPct) || 0)),
       billingType: effectiveBilling,
@@ -284,13 +311,39 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
           fetchOptions={searchProducts(tierId)}
           value={product?.id}
           selected={product}
-          onChange={setProduct}
+          onChange={(next) => {
+            setProduct(next);
+            setVariantId("");
+          }}
           noun="products"
           placeholder="Search the catalogue…"
           disabled={isBusy}
           openTo={(id) => `/products/${id}`}
         />
       </div>
+
+      {product?.record.variants?.length > 0 && (
+        <div>
+          <label htmlFor="add-variant" className="mb-1 block text-xs font-medium text-sand-600">
+            Variant
+          </label>
+          <Select
+            id="add-variant"
+            value={variantId}
+            disabled={isBusy}
+            onChange={(event) => setVariantId(event.target.value)}
+            className="!w-44"
+          >
+            <option value="">Choose…</option>
+            {product.record.variants.map((variant) => (
+              <option key={variant.id} value={variant.id}>
+                {variant.attribute}: {variant.value}
+                {variant.extraPrice ? ` (+${formatMoney(variant.extraPrice)})` : ""}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       <div>
         <label htmlFor="add-qty" className="mb-1 block text-xs font-medium text-sand-600">
@@ -365,7 +418,11 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
         </div>
       )}
 
-      <Button icon={Plus} disabled={isBusy || !product} onClick={add}>
+      <Button
+        icon={Plus}
+        disabled={isBusy || !product || (product.record.variants?.length > 0 && !variantId)}
+        onClick={add}
+      >
         Add line
       </Button>
 

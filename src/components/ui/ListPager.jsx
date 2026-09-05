@@ -4,8 +4,8 @@ import { PAGE_SIZE } from "../../lib/list";
 
 // Hidden while everything fits on one page, so a short list does not grow a
 // footer it does not need.
-export function ListPager({ page, pageCount, total, from, to, onPage }) {
-  if (total <= PAGE_SIZE) return null;
+export function ListPager({ page, pageCount, total, from, to, onPage, pageSize = PAGE_SIZE }) {
+  if (total <= pageSize) return null;
 
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-sand-600">

@@ -113,6 +113,7 @@ export function ApprovalPanel({ quotation, canAct }) {
               label="Reason"
               htmlFor="approval-reason"
               hint="Required when rejecting or returning."
+              tooltip="Written on the quotation timeline. The rep sees this when the deal comes back."
             >
               <Textarea
                 id="approval-reason"

@@ -29,6 +29,15 @@ export function resolveUnitPrice(product, priceListItems) {
   return product.salesPrice;
 }
 
+// Active lists for this tier, then any list with no tier, then the product price.
+export function priceForTier(product, tierId) {
+  const items = (product.priceListItems || []).filter(
+    (item) => item.priceList.isActive && (!item.priceList.tierId || item.priceList.tierId === tierId),
+  );
+  const forTier = items.filter((item) => item.priceList.tierId === tierId);
+  return resolveUnitPrice(product, forTier.length ? forTier : items);
+}
+
 // A line carries one discount. A blanket discount is applied by writing it to
 // every line, so nothing is added on afterwards and the figure on the line is
 // what is charged.

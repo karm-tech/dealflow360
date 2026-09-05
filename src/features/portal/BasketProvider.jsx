@@ -1,16 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useAuth } from "../../app/AuthProvider";
 
-// The basket is the customer's own working note, so it stays in their browser
-// until they send it. Nothing half-finished reaches the database, and closing
-// the tab does not lose it.
-//
-// Keyed by user id because two people may sign in from the same machine, and
-// the second must not inherit the first one's basket. It is a context rather
-// than a plain hook so the count in the header and the basket page are the
-// same list, not two copies that drift apart.
+// Per-user localStorage until the request is sent, so two logins on one machine
+// do not share a basket.
 
 const PREFIX = "dealflow360.basket";
+
+export function lineKey(item) {
+  return `${item.productId}:${item.variantId || 0}`;
+}
 
 const BasketContext = createContext(null);
 
@@ -42,22 +40,29 @@ export function BasketProvider({ children }) {
 
   // Adding what is already there raises the quantity, matching how the same
   // action behaves on the internal quotation form.
-  const add = useCallback((product, qty = 1) => {
+  const add = useCallback((product, qty = 1, variant = null) => {
     setItems((current) => {
-      const existing = current.find((item) => item.productId === product.id);
+      const variantId = variant?.id || null;
+      const existing = current.find(
+        (item) => item.productId === product.id && (item.variantId || null) === variantId,
+      );
       if (existing) {
         return current.map((item) =>
-          item.productId === product.id ? { ...item, qty: item.qty + qty } : item,
+          item.productId === product.id && (item.variantId || null) === variantId
+            ? { ...item, qty: item.qty + qty }
+            : item,
         );
       }
       return [
         ...current,
         {
           productId: product.id,
+          variantId,
+          variantLabel: variant ? `${variant.attribute}: ${variant.value}` : null,
           name: product.name,
           sku: product.sku,
           unit: product.unit,
-          price: product.price,
+          price: product.price + (variant?.extraPrice || 0),
           billingType: product.billingType,
           planName: product.planName,
           qty,
@@ -66,14 +71,14 @@ export function BasketProvider({ children }) {
     });
   }, []);
 
-  const setQty = useCallback((productId, qty) => {
+  const setQty = useCallback((key, qty) => {
     setItems((current) =>
-      current.map((item) => (item.productId === productId ? { ...item, qty } : item)),
+      current.map((item) => (lineKey(item) === key ? { ...item, qty } : item)),
     );
   }, []);
 
-  const remove = useCallback((productId) => {
-    setItems((current) => current.filter((item) => item.productId !== productId));
+  const remove = useCallback((key) => {
+    setItems((current) => current.filter((item) => lineKey(item) !== key));
   }, []);
 
   const clear = useCallback(() => setItems([]), []);

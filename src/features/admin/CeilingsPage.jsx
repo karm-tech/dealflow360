@@ -92,7 +92,7 @@ function TierDialog({ open, tier, onClose }) {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         {!isEdit && (
-          <Field label="Code" htmlFor="tier-id" hint="Capitals, no spaces. Cannot change later.">
+          <Field label="Code" htmlFor="tier-id" hint="Capitals, no spaces. Cannot change later." tooltip="Primary key for the tier. Customers store this code, so it cannot be renamed later.">
             <Input
               id="tier-id"
               autoFocus
@@ -103,7 +103,7 @@ function TierDialog({ open, tier, onClose }) {
           </Field>
         )}
 
-        <Field label="Name" htmlFor="tier-name">
+        <Field label="Name" htmlFor="tier-name" tooltip="What staff see on the customer and on quotations.">
           <Input
             id="tier-name"
             autoFocus={isEdit}
@@ -113,7 +113,7 @@ function TierDialog({ open, tier, onClose }) {
           />
         </Field>
 
-        <Field label="Discount ceiling %" htmlFor="tier-max">
+        <Field label="Discount ceiling %" htmlFor="tier-max" tooltip="The most this tier may be discounted. A category ceiling can still be stricter on a line.">
           <Input
             id="tier-max"
             type="number"
@@ -125,7 +125,7 @@ function TierDialog({ open, tier, onClose }) {
           />
         </Field>
 
-        <Field label="Order" htmlFor="tier-sequence" hint="Where it sits in the list.">
+        <Field label="Order" htmlFor="tier-sequence" hint="Where it sits in the list." tooltip="Lower numbers appear first. Does not change the ceiling.">
           <Input
             id="tier-sequence"
             type="number"
@@ -202,7 +202,7 @@ function CategoryDialog({ open, category, onClose }) {
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" htmlFor="category-name">
+        <Field label="Name" htmlFor="category-name" tooltip="Groups products and holds a discount ceiling of its own.">
           <Input
             id="category-name"
             autoFocus
@@ -212,7 +212,7 @@ function CategoryDialog({ open, category, onClose }) {
           />
         </Field>
 
-        <Field label="Discount ceiling %" htmlFor="category-ceiling">
+        <Field label="Discount ceiling %" htmlFor="category-ceiling" tooltip="Cap for products in this category. The line uses the lower of this and the customer tier.">
           <Input
             id="category-ceiling"
             type="number"

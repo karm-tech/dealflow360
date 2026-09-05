@@ -13,7 +13,7 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
-import { useBasket } from "./BasketProvider";
+import { lineKey, useBasket } from "./BasketProvider";
 
 function Line({ item, onQty, onRemove }) {
   return (
@@ -21,7 +21,8 @@ function Line({ item, onQty, onRemove }) {
       <div className="min-w-40 flex-1">
         <p className="text-base font-medium text-sand-900">{item.name}</p>
         <p className="figure mt-0.5 text-xs text-sand-600">
-          {item.sku} · {formatMoney(item.price)} per {item.unit}
+          {item.sku}
+          {item.variantLabel ? ` · ${item.variantLabel}` : ""} · {formatMoney(item.price)} per {item.unit}
         </p>
       </div>
 
@@ -37,7 +38,7 @@ function Line({ item, onQty, onRemove }) {
         min={1}
         value={item.qty}
         aria-label={`Quantity of ${item.name}`}
-        onChange={(event) => onQty(item.productId, Math.max(1, Number(event.target.value) || 1))}
+        onChange={(event) => onQty(item.key, Math.max(1, Number(event.target.value) || 1))}
         className="figure w-16 rounded-lg border border-sand-300 px-2 py-1.5 text-right text-sm focus:border-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-100"
       />
 
@@ -50,7 +51,7 @@ function Line({ item, onQty, onRemove }) {
         size="sm"
         icon={Trash2}
         aria-label={`Remove ${item.name}`}
-        onClick={() => onRemove(item.productId)}
+        onClick={() => onRemove(item.key)}
       />
     </li>
   );
@@ -67,7 +68,11 @@ export function PortalRequestPage() {
   const submit = useMutation({
     mutationFn: () =>
       api.post("/portal/requests", {
-        lines: items.map((item) => ({ productId: item.productId, qty: item.qty })),
+        lines: items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId || undefined,
+          qty: item.qty,
+        })),
         notes: notes.trim() || undefined,
       }),
     onSuccess: (response) => {
@@ -112,7 +117,7 @@ export function PortalRequestPage() {
         <>
           <ul className="rounded-xl border border-sand-200 bg-surface shadow-card">
             {items.map((item) => (
-              <Line key={item.productId} item={item} onQty={setQty} onRemove={remove} />
+              <Line key={lineKey(item)} item={{ ...item, key: lineKey(item) }} onQty={setQty} onRemove={remove} />
             ))}
           </ul>
 
@@ -133,6 +138,7 @@ export function PortalRequestPage() {
               label="Anything we should know?"
               htmlFor="portal-notes"
               hint="Delivery dates, site details, a budget to work to — whatever helps us quote properly."
+              tooltip="Attached to the draft the rep picks up. It does not set a price or a discount."
             >
               <Textarea
                 id="portal-notes"

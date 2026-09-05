@@ -3,7 +3,7 @@ import { ShieldOff, Compass } from "lucide-react";
 import { useAuth } from "../../app/AuthProvider";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/ui";
-import { ROLE_LABELS, ROLES } from "../../lib/constants";
+import { homePathFor, ROLE_LABELS } from "../../lib/constants";
 
 // Shared shell so both messages sit in the same place on the page.
 function MessagePage({ icon: Icon, title, children, action }) {
@@ -24,7 +24,7 @@ function MessagePage({ icon: Icon, title, children, action }) {
 
 export function NoAccessPage() {
   const { user } = useAuth();
-  const homePath = user?.role === ROLES.CUSTOMER ? "/portal" : "/quotations";
+  const homePath = homePathFor(user?.role);
 
   return (
     <MessagePage

@@ -11,7 +11,8 @@ import {
 } from "../lib/quotationRules.js";
 import { QUOTATION_INCLUDE, quotationDetail, quotationSummary } from "../lib/quotationView.js";
 import { nextQuotationNumber } from "../lib/quotationNumber.js";
-import { resolveUnitPrice } from "../lib/pricing.js";
+import { priceForTier } from "../lib/pricing.js";
+import { applyVariantPrice } from "../lib/variants.js";
 import {
   checkRenewalLeadDays,
   defaultRenewalLeadDays,
@@ -63,6 +64,7 @@ const bulkDiscountSchema = z.object({
 
 const lineSchema = z.object({
   productId: z.number().int().positive("Choose a product"),
+  variantId: z.number().int().positive().nullable().optional(),
   qty: z.number().int().min(1, "Quantity must be at least 1").optional(),
   discountPct: z.number().min(0, "Discount cannot be negative").max(100, "Discount cannot be over 100%").optional(),
   billingType: z.enum([BILLING_TYPE.ONE_TIME, BILLING_TYPE.RECURRING]).optional(),
@@ -72,7 +74,7 @@ const lineSchema = z.object({
   renewalLeadDays: z.number().int().min(1, "Renewal notice must be at least 1 day").optional(),
 });
 
-const lineUpdateSchema = lineSchema.partial().omit({ productId: true });
+const lineUpdateSchema = lineSchema.partial().omit({ productId: true, variantId: true });
 
 function firstIssue(parsed) {
   return parsed.error.issues[0].message;
@@ -122,20 +124,31 @@ async function loadHistory(db, quotationId) {
 }
 
 // Price for this customer, captured onto the line at the moment it is added.
-async function priceForCustomer(db, productId, tierId) {
+async function priceForCustomer(db, productId, tierId, variantId) {
   const product = await db.product.findUnique({
     where: { id: productId },
-    include: { priceListItems: { include: { priceList: true } }, defaultPlan: true },
+    include: {
+      priceListItems: { include: { priceList: true } },
+      defaultPlan: true,
+      variants: true,
+    },
   });
 
   if (!product || !product.isActive) return null;
 
-  const usable = product.priceListItems.filter(
-    (item) => item.priceList.isActive && (!item.priceList.tierId || item.priceList.tierId === tierId),
-  );
-  const forTier = usable.filter((item) => item.priceList.tierId === tierId);
+  const basePrice = priceForTier(product, tierId);
 
-  return { product, unitPrice: resolveUnitPrice(product, forTier.length ? forTier : usable) };
+  if (product.variants.length > 0 && !variantId) {
+    return { error: "Choose a variant for this product" };
+  }
+
+  let variant = null;
+  if (variantId) {
+    variant = product.variants.find((row) => row.id === variantId) || null;
+    if (!variant) return { error: "That variant does not belong to this product" };
+  }
+
+  return { product, variant, unitPrice: applyVariantPrice(basePrice, variant) };
 }
 
 // Two lines are the same line when everything that decides what is charged
@@ -151,6 +164,7 @@ function matchingLine(lines, candidate) {
   return lines.find(
     (line) =>
       line.productId === candidate.productId &&
+      (line.variantId || null) === (candidate.variantId || null) &&
       line.discountPct === candidate.discountPct &&
       line.billingType === candidate.billingType &&
       (line.planId || null) === (candidate.planId || null) &&
@@ -397,6 +411,7 @@ quotationsRouter.post("/:id/duplicate", async (req, res) => {
       lines: {
         create: source.lines.map((line) => ({
           productId: line.productId,
+          variantId: line.variantId,
           qty: line.qty,
           unitPrice: line.unitPrice,
           discountPct: line.discountPct,
@@ -429,16 +444,23 @@ quotationsRouter.post("/:id/lines", async (req, res) => {
   if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
   if (!guardEditable(quotation, res)) return;
 
-  const resolved = await priceForCustomer(req.db, parsed.data.productId, quotation.customer.tierId);
+  const resolved = await priceForCustomer(
+    req.db,
+    parsed.data.productId,
+    quotation.customer.tierId,
+    parsed.data.variantId,
+  );
   if (!resolved) return res.status(404).json({ error: "That product is not available" });
+  if (resolved.error) return res.status(400).json({ error: resolved.error });
 
-  const { product, unitPrice } = resolved;
+  const { product, variant, unitPrice } = resolved;
   const billingType = parsed.data.billingType || product.defaultBillingType;
   const isRecurring = billingType === BILLING_TYPE.RECURRING;
   const qty = parsed.data.qty ?? 1;
 
   const candidate = {
     productId: product.id,
+    variantId: variant ? variant.id : null,
     discountPct: parsed.data.discountPct ?? 0,
     billingType,
     planId: isRecurring ? parsed.data.planId || product.defaultPlanId || "MONTHLY" : null,

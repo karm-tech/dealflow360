@@ -4,9 +4,6 @@ import { QUOTATION_STATUS } from "./constants.js";
 import { scoreQuotation } from "./risk.js";
 import { buildChain, findBand, rolesForBand, stepRowsFor } from "./approvals.js";
 
-// A quotation is open for changes while it is being written, and again after a
-// reviewer returns it. While it sits with a reviewer, or once it is agreed, it
-// is fixed.
 const EDITABLE_STATUSES = [QUOTATION_STATUS.DRAFT, "RETURNED"];
 
 export function isEditable(status) {
@@ -23,8 +20,7 @@ export function editBlockedMessage(status) {
   return "This quotation has been agreed and cannot be changed.";
 }
 
-// What confirming would do, without doing it. Same routing as the confirm, so
-// the preview a rep sees cannot disagree with the decision.
+// Same routing as confirm, so the preview cannot disagree with the decision.
 export async function previewRouting(db, quotation) {
   const plan = await resolveConfirmTarget(db, quotation);
 
@@ -35,11 +31,8 @@ export async function previewRouting(db, quotation) {
   };
 }
 
-// Decides where a quotation goes when the rep confirms it. Returns a plan for
-// the route to apply; nothing is written here.
-//
-// A quotation inside its ceilings is approved on the spot. It still goes to the
-// customer afterwards — skipping approval is not the same as closing the deal.
+// Plan only — the route writes the status. In-ceiling quotes skip the chain
+// but still go to the customer; skipping approval is not closing the deal.
 export async function resolveConfirmTarget(db, quotation) {
   const risk = scoreQuotation(quotation);
   const band = await findBand(db, risk.score);
@@ -56,8 +49,7 @@ export async function resolveConfirmTarget(db, quotation) {
 
   const chain = await buildChain(db, roles, quotation.repId);
 
-  // Every role in the band was ruled out. Approving anyway would turn deleting
-  // an approver into a way around the ceilings, so the confirm is refused.
+  // Empty chain after filtering: refuse rather than auto-approve around a missing approver.
   if (chain.length === 0) {
     return {
       error: "No approver available for this discount level — contact an admin.",

@@ -17,6 +17,7 @@ import {
   ErrorState,
   Field,
   Input,
+  ListPager,
   Modal,
   Select,
   Spinner,
@@ -31,6 +32,9 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
+import { paginate } from "../../lib/list";
+
+const ITEMS_PAGE = 10;
 
 function ListDialog({ open, tiers, onClose }) {
   const queryClient = useQueryClient();
@@ -76,7 +80,7 @@ function ListDialog({ open, tiers, onClose }) {
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" htmlFor="list-name">
+        <Field label="Name" htmlFor="list-name" tooltip="Internal label. Shown when choosing which list a tier uses.">
           <Input
             id="list-name"
             autoFocus
@@ -86,7 +90,7 @@ function ListDialog({ open, tiers, onClose }) {
           />
         </Field>
 
-        <Field label="Tier" htmlFor="list-tier">
+        <Field label="Tier" htmlFor="list-tier" tooltip="Optional. Customers on this tier pick these prices before the catalogue list.">
           <Select
             id="list-tier"
             value={form.tierId}
@@ -167,7 +171,7 @@ function PriceDialog({ open, list, onClose }) {
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Product" htmlFor="price-product">
+        <Field label="Product" htmlFor="price-product" tooltip="One price per product on this list. Variants still add their extra on top.">
           <Select
             id="price-product"
             value={form.productId}
@@ -186,6 +190,7 @@ function PriceDialog({ open, list, onClose }) {
           label="Price"
           htmlFor="price-value"
           hint={chosen ? `Catalogue price is ${formatMoney(chosen.price)}.` : undefined}
+          tooltip="What this list charges for the product before a variant extra or a discount."
         >
           <Input
             id="price-value"
@@ -203,6 +208,68 @@ function PriceDialog({ open, list, onClose }) {
         </p>
       )}
     </Modal>
+  );
+}
+
+function PriceListItems({ list, onRemove }) {
+  const [page, setPage] = useState(1);
+  const windowed = paginate(list.items, page, ITEMS_PAGE);
+
+  return (
+    <div className="px-6 pb-6">
+      <Table>
+        <THead>
+          <TR>
+            <TH>Product</TH>
+            <TH align="right">Catalogue price</TH>
+            <TH align="right">This list</TH>
+            <TH align="right">Difference</TH>
+            <TH align="right" />
+          </TR>
+        </THead>
+        <TBody>
+          {windowed.rows.map((item) => {
+            const difference = item.price - item.listPrice;
+
+            return (
+              <TR key={item.id}>
+                <TD>
+                  {item.productName}
+                  <Badge className="ml-2">{item.sku}</Badge>
+                </TD>
+                <TD figure align="right">
+                  {formatMoney(item.listPrice)}
+                </TD>
+                <TD figure align="right">
+                  {formatMoney(item.price)}
+                </TD>
+                <TD figure align="right">
+                  {difference === 0 ? (
+                    <span className="text-sand-500">same</span>
+                  ) : (
+                    <StatusPill tone={difference < 0 ? "info" : "warn"}>
+                      {difference < 0 ? "−" : "+"}
+                      {formatMoney(Math.abs(difference))}
+                    </StatusPill>
+                  )}
+                </TD>
+                <TD align="right">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={X}
+                    onClick={() => onRemove({ listId: list.id, itemId: item.id })}
+                  >
+                    Remove
+                  </Button>
+                </TD>
+              </TR>
+            );
+          })}
+        </TBody>
+      </Table>
+      <ListPager {...windowed} pageSize={ITEMS_PAGE} onPage={setPage} />
+    </div>
   );
 }
 
@@ -319,57 +386,7 @@ export function PriceListsPage() {
                   Nothing priced yet, so this list changes nothing.
                 </p>
               ) : (
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH>Product</TH>
-                      <TH align="right">Catalogue price</TH>
-                      <TH align="right">This list</TH>
-                      <TH align="right">Difference</TH>
-                      <TH align="right" />
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {list.items.map((item) => {
-                      const difference = item.price - item.listPrice;
-
-                      return (
-                        <TR key={item.id}>
-                          <TD>
-                            {item.productName}
-                            <Badge className="ml-2">{item.sku}</Badge>
-                          </TD>
-                          <TD figure align="right">
-                            {formatMoney(item.listPrice)}
-                          </TD>
-                          <TD figure align="right">
-                            {formatMoney(item.price)}
-                          </TD>
-                          <TD figure align="right">
-                            {difference === 0 ? (
-                              <span className="text-sand-500">same</span>
-                            ) : (
-                              <StatusPill tone={difference < 0 ? "info" : "warn"}>
-                                {difference < 0 ? "−" : "+"}
-                                {formatMoney(Math.abs(difference))}
-                              </StatusPill>
-                            )}
-                          </TD>
-                          <TD align="right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              icon={X}
-                              onClick={() => removeItem.mutate({ listId: list.id, itemId: item.id })}
-                            >
-                              Remove
-                            </Button>
-                          </TD>
-                        </TR>
-                      );
-                    })}
-                  </TBody>
-                </Table>
+                <PriceListItems list={list} onRemove={removeItem.mutate} />
               )}
             </Card>
           ))}

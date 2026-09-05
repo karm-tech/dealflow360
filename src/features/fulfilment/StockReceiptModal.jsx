@@ -76,7 +76,7 @@ export function StockReceiptModal({ open, onClose, onSaved }) {
         <Spinner label="Loading warehouses" />
       ) : (
         <div className="space-y-3">
-          <Field label="Warehouse">
+          <Field label="Warehouse" tooltip="Where the received units are added.">
             <Select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
               <option value="">Choose a warehouse</option>
               {warehouses.map((warehouse) => (
@@ -87,7 +87,7 @@ export function StockReceiptModal({ open, onClose, onSaved }) {
             </Select>
           </Field>
 
-          <Field label="Product">
+          <Field label="Product" tooltip="Stockable products already held at the chosen warehouse.">
             <Select
               value={productId}
               onChange={(event) => setProductId(event.target.value)}
@@ -102,7 +102,7 @@ export function StockReceiptModal({ open, onClose, onSaved }) {
             </Select>
           </Field>
 
-          <Field label="Quantity received">
+          <Field label="Quantity received" tooltip="Added to on-hand stock. Backorders waiting on this product can then be filled.">
             <Input
               type="number"
               min={1}

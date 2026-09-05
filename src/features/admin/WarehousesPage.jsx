@@ -115,7 +115,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" htmlFor="wh-name">
+        <Field label="Name" htmlFor="wh-name" tooltip="Shown on the fulfilment split and on stock receipts.">
           <Input
             id="wh-name"
             autoFocus
@@ -125,7 +125,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
           />
         </Field>
 
-        <Field label="Code" htmlFor="wh-code" hint="Capitals, digits and hyphens.">
+        <Field label="Code" htmlFor="wh-code" hint="Capitals, digits and hyphens." tooltip="Short unique code used on allocations. Cannot clash with another warehouse.">
           <Input
             id="wh-code"
             value={form.code}
@@ -134,7 +134,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
           />
         </Field>
 
-        <Field label="City" htmlFor="wh-city">
+        <Field label="City" htmlFor="wh-city" tooltip="Used when explaining a split. Does not auto-route by customer city.">
           <Input
             id="wh-city"
             value={form.city}
@@ -142,7 +142,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
           />
         </Field>
 
-        <Field label="Status" htmlFor="wh-active" hint="An inactive warehouse is left out of the split.">
+        <Field label="Status" htmlFor="wh-active" hint="An inactive warehouse is left out of the split." tooltip="Inactive stock is kept but never chosen for a new allocation.">
           <Select
             id="wh-active"
             value={form.isActive}
@@ -157,6 +157,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
           label="Shipping weight"
           htmlFor="wh-weight"
           hint="Relative cost to ship from here. Lower is preferred."
+          tooltip="A ratio, not rupees. The split prefers a lower weight when stock allows."
         >
           <Input
             id="wh-weight"
@@ -168,7 +169,7 @@ function WarehouseDialog({ open, warehouse, onClose }) {
           />
         </Field>
 
-        <Field label="Lead time (days)" htmlFor="wh-lead" hint="Dispatch to arrival, sets the estimate.">
+        <Field label="Lead time (days)" htmlFor="wh-lead" hint="Dispatch to arrival, sets the estimate." tooltip="The estimated delivery date uses the slowest warehouse in the split.">
           <Input
             id="wh-lead"
             type="number"
@@ -259,7 +260,7 @@ function ReceiveDialog({ open, warehouses, onClose }) {
     >
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="sm:col-span-2">
-          <Field label="Product" htmlFor="receive-product">
+          <Field label="Product" htmlFor="receive-product" tooltip="Stockable products only. Services never have a quantity to receive.">
             <Select
               id="receive-product"
               value={form.productId}
@@ -275,7 +276,7 @@ function ReceiveDialog({ open, warehouses, onClose }) {
           </Field>
         </div>
 
-        <Field label="Quantity" htmlFor="receive-qty">
+        <Field label="Quantity" htmlFor="receive-qty" tooltip="Added to on-hand stock in the warehouse chosen below.">
           <Input
             id="receive-qty"
             type="number"
@@ -286,7 +287,7 @@ function ReceiveDialog({ open, warehouses, onClose }) {
         </Field>
 
         <div className="sm:col-span-3">
-          <Field label="Into" htmlFor="receive-warehouse">
+          <Field label="Into" htmlFor="receive-warehouse" tooltip="Where the units land. An inactive warehouse can still receive stock.">
             <Select
               id="receive-warehouse"
               value={form.warehouseId}

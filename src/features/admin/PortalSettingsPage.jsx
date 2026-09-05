@@ -70,6 +70,7 @@ export function PortalSettingsPage() {
             label="Website salesperson"
             htmlFor="portalSalesRepId"
             hint="Every quotation requested from the portal is assigned to this person, who is notified as soon as it arrives."
+            tooltip="If nobody is named, the request still arrives as a draft but has no owner."
           >
             <Select
               id="portalSalesRepId"
@@ -89,6 +90,7 @@ export function PortalSettingsPage() {
             label="Starting tier for new customers"
             htmlFor="portalDefaultTierId"
             hint="What a company that registers itself is priced at until someone moves them."
+            tooltip="Only for self-registered companies. Existing customers keep the tier already on their record."
           >
             <Select
               id="portalDefaultTierId"

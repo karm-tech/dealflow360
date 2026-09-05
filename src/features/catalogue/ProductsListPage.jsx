@@ -15,6 +15,7 @@ import {
   Modal,
   SearchField,
   Select,
+  Textarea,
   Spinner,
   Table,
   TBody,
@@ -32,22 +33,18 @@ import { BILLING_TYPE, BILLING_TYPE_LABELS } from "../../lib/constants";
 
 // Goods are counted in a warehouse and can run short; a service never is. How
 // the line is charged is a separate question, so it is a separate field.
-const KINDS = {
-  goods: { label: "Goods", isStockable: true, hint: "Kept in a warehouse and shipped" },
-  service: { label: "Service", isStockable: false, hint: "Nothing to ship or count" },
-};
-
 const BLANK = {
   name: "",
   sku: "",
   categoryId: "",
-  kind: "goods",
+  isStockable: true,
   unit: "unit",
   salesPrice: "",
   cost: "",
   taxRatePct: "18",
   defaultBillingType: BILLING_TYPE.ONE_TIME,
   defaultPlanId: "",
+  description: "",
 };
 
 function NewProductDialog({ open, onClose }) {
@@ -92,9 +89,10 @@ function NewProductDialog({ open, onClose }) {
         salesPrice: Number(form.salesPrice),
         cost: Number(form.cost),
         taxRatePct: Number(form.taxRatePct),
-        isStockable: KINDS[form.kind].isStockable,
+        isStockable: form.isStockable,
         defaultBillingType: form.defaultBillingType,
         defaultPlanId: isRecurring ? form.defaultPlanId || "MONTHLY" : null,
+        description: form.description.trim() || null,
       }),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -131,7 +129,7 @@ function NewProductDialog({ open, onClose }) {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field label="Name" htmlFor="product-name">
+          <Field label="Name" htmlFor="product-name" tooltip="How the product appears on quotations, the portal and PDFs.">
             <Input
               id="product-name"
               autoFocus
@@ -142,7 +140,24 @@ function NewProductDialog({ open, onClose }) {
           </Field>
         </div>
 
-        <Field label="SKU" htmlFor="product-sku" hint="Must be unique.">
+        <div className="sm:col-span-2">
+          <Field
+            label="Description"
+            htmlFor="product-description"
+            hint="Shown on the product and on quotations."
+            tooltip="A short commercial description. Not used in pricing."
+          >
+            <Textarea
+              id="product-description"
+              rows={2}
+              value={form.description}
+              onChange={(event) => set("description", event.target.value)}
+              placeholder="What this is, in one or two sentences."
+            />
+          </Field>
+        </div>
+
+        <Field label="SKU" htmlFor="product-sku" hint="Must be unique." tooltip="Internal code. Used in search and on documents.">
           <Input
             id="product-sku"
             value={form.sku}
@@ -151,7 +166,7 @@ function NewProductDialog({ open, onClose }) {
           />
         </Field>
 
-        <Field label="Category" htmlFor="product-category">
+        <Field label="Category" htmlFor="product-category" tooltip="The category ceiling can cap the discount on a line, whichever is stricter with the customer tier.">
           <Select
             id="product-category"
             value={form.categoryId}
@@ -166,21 +181,25 @@ function NewProductDialog({ open, onClose }) {
           </Select>
         </Field>
 
-        <Field label="Type" htmlFor="product-kind" hint={KINDS[form.kind].hint}>
-          <Select
-            id="product-kind"
-            value={form.kind}
-            onChange={(event) => set("kind", event.target.value)}
-          >
-            {Object.entries(KINDS).map(([value, kind]) => (
-              <option key={value} value={value}>
-                {kind.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className="flex items-end">
+          <label htmlFor="product-stockable" className="flex items-start gap-3 py-2">
+            <input
+              id="product-stockable"
+              type="checkbox"
+              checked={form.isStockable}
+              onChange={(event) => set("isStockable", event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-sand-300 text-ink-700 focus:ring-ink-500/20"
+            />
+            <span>
+              <span className="block text-sm font-medium text-sand-800">Stockable</span>
+              <span className="mt-0.5 block text-xs text-sand-600">
+                Counted in a warehouse. Leave off for a service.
+              </span>
+            </span>
+          </label>
+        </div>
 
-        <Field label="Unit" htmlFor="product-unit">
+        <Field label="Unit" htmlFor="product-unit" tooltip="Printed next to quantity. Does not change how stock is counted.">
           <Input
             id="product-unit"
             value={form.unit}
@@ -189,7 +208,7 @@ function NewProductDialog({ open, onClose }) {
           />
         </Field>
 
-        <Field label="Sales price" htmlFor="product-price">
+        <Field label="Sales price" htmlFor="product-price" tooltip="Catalogue list price. A price list or variant extra can change what a line actually charges.">
           <Input
             id="product-price"
             type="number"
@@ -199,7 +218,7 @@ function NewProductDialog({ open, onClose }) {
           />
         </Field>
 
-        <Field label="Cost" htmlFor="product-cost" hint="Internal only; drives margin.">
+        <Field label="Cost" htmlFor="product-cost" hint="Internal only; drives margin." tooltip="Never sent to the portal. Margin on a quotation is list minus this, after discount.">
           <Input
             id="product-cost"
             type="number"
@@ -209,7 +228,7 @@ function NewProductDialog({ open, onClose }) {
           />
         </Field>
 
-        <Field label="Tax %" htmlFor="product-tax">
+        <Field label="Tax %" htmlFor="product-tax" tooltip="Applied on the first invoice, after discount.">
           <Input
             id="product-tax"
             type="number"
@@ -220,7 +239,7 @@ function NewProductDialog({ open, onClose }) {
           />
         </Field>
 
-        <Field label="Billing" htmlFor="product-billing" hint="Only the default; the line can change it.">
+        <Field label="Billing" htmlFor="product-billing" hint="Only the default; the line can change it." tooltip="One-time raises an invoice on confirm. Recurring opens a subscription.">
           <Select
             id="product-billing"
             value={form.defaultBillingType}
@@ -235,7 +254,7 @@ function NewProductDialog({ open, onClose }) {
         </Field>
 
         {isRecurring && (
-          <Field label="Period" htmlFor="product-plan">
+          <Field label="Period" htmlFor="product-plan" tooltip="How often a recurring line is billed. The quotation line can still pick another plan.">
             <Select
               id="product-plan"
               value={form.defaultPlanId || "MONTHLY"}
@@ -319,7 +338,7 @@ export function ProductsListPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Search" htmlFor="search">
+        <Field label="Search" htmlFor="search" tooltip="Matches product name or SKU.">
           <SearchField
             id="search"
             value={search}
@@ -328,7 +347,7 @@ export function ProductsListPage() {
           />
         </Field>
 
-        <Field label="Type" htmlFor="kind">
+        <Field label="Type" htmlFor="kind" tooltip="Stockable goods versus services and subscriptions.">
           <Select
             id="kind"
             value={kind}

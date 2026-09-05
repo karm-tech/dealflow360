@@ -298,7 +298,11 @@ export function QuotationBuilderPage() {
         <div className="space-y-5">
           <Card>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Customer" htmlFor="customer">
+              <Field
+                label="Customer"
+                htmlFor="customer"
+                tooltip="Tier and discount ceiling come from this record. Changing it reprices every line."
+              >
                 <RecordPicker
                   id="customer"
                   queryKey="customers"
@@ -320,7 +324,7 @@ export function QuotationBuilderPage() {
               </Field>
 
               {/* Read from the customer record, so it never goes stale here. */}
-              <Field label="Contact">
+              <Field label="Contact" tooltip="Read from the customer record so it cannot go stale on this form.">
                 <p className="py-2 text-base text-sand-800">
                   {quotation.customer.email}
                   {quotation.customer.phone && <> · {quotation.customer.phone}</>}
@@ -331,6 +335,7 @@ export function QuotationBuilderPage() {
                 label="Inquiry date"
                 htmlFor="inquiry"
                 hint="When the customer got in touch."
+                tooltip="Not the date this quotation was written. Used on PDFs and reports."
               >
                 <Input
                   id="inquiry"
@@ -351,6 +356,7 @@ export function QuotationBuilderPage() {
                 label="Requested delivery"
                 htmlFor="requested"
                 hint="The date the customer asked for."
+                tooltip="Slippage is measured against this date once a warehouse split is estimated."
               >
                 <Input
                   id="requested"

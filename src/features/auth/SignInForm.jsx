@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { useAuth } from "../../app/AuthProvider";
 import { errorMessage } from "../../lib/api";
 import { Button, Field, Input } from "../../components/ui";
-import { ROLES } from "../../lib/constants";
+import { homePathFor } from "../../lib/constants";
 
 // Shared by both sign-in pages; the instance is passed in, never picked here.
 // Whichever page was used is stamped into the signed token.
@@ -21,7 +21,7 @@ export function SignInForm({ mode, footer }) {
     setFormError("");
     try {
       const user = await login(values.email, values.password, mode);
-      navigate(user.role === ROLES.CUSTOMER ? "/portal" : "/quotations", { replace: true });
+      navigate(homePathFor(user.role), { replace: true });
     } catch (error) {
       setFormError(errorMessage(error));
     }
@@ -29,7 +29,12 @@ export function SignInForm({ mode, footer }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <Field label="Email" htmlFor="email" error={formState.errors.email?.message}>
+      <Field
+        label="Email"
+        htmlFor="email"
+        tooltip="The work address this account was created with."
+        error={formState.errors.email?.message}
+      >
         <Input
           id="email"
           type="email"
@@ -39,7 +44,12 @@ export function SignInForm({ mode, footer }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="password" error={formState.errors.password?.message}>
+      <Field
+        label="Password"
+        htmlFor="password"
+        tooltip="Case-sensitive. The same password is used on demo and live — they are still separate accounts."
+        error={formState.errors.password?.message}
+      >
         <Input
           id="password"
           type="password"

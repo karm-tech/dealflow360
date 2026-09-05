@@ -131,7 +131,7 @@ function BandDialog({ open, band, onClose }) {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field label="Name" htmlFor="band-name">
+          <Field label="Name" htmlFor="band-name" tooltip="Shown on the quotation when this band matches the overage score.">
             <Input
               id="band-name"
               autoFocus
@@ -142,7 +142,7 @@ function BandDialog({ open, band, onClose }) {
           </Field>
         </div>
 
-        <Field label="From (points)" htmlFor="band-min" hint="Inclusive.">
+        <Field label="From (points)" htmlFor="band-min" hint="Inclusive." tooltip="Overage at or above this value enters the band.">
           <Input
             id="band-min"
             type="number"
@@ -153,7 +153,7 @@ function BandDialog({ open, band, onClose }) {
           />
         </Field>
 
-        <Field label="Up to (points)" htmlFor="band-max" hint="Exclusive. Leave empty for no limit.">
+        <Field label="Up to (points)" htmlFor="band-max" hint="Exclusive. Leave empty for no limit." tooltip="Overage below this value stays in the band. Empty means no upper limit.">
           <Input
             id="band-max"
             type="number"
@@ -165,7 +165,7 @@ function BandDialog({ open, band, onClose }) {
           />
         </Field>
 
-        <Field label="Approved by" htmlFor="band-approvers">
+        <Field label="Approved by" htmlFor="band-approvers" tooltip="Who must sign. Finance is added after the manager when both are required.">
           <Select
             id="band-approvers"
             value={form.approvers}
@@ -179,7 +179,7 @@ function BandDialog({ open, band, onClose }) {
           </Select>
         </Field>
 
-        <Field label="Status" htmlFor="band-active">
+        <Field label="Status" htmlFor="band-active" tooltip="An inactive band is skipped. Overage then falls through to the next matching band.">
           <Select
             id="band-active"
             value={form.isActive}

@@ -1,15 +1,10 @@
-// Downloading an export.
-//
-// The file is fetched through the same client as everything else so it carries
-// the auth header, rather than being opened as a plain link the server would
-// refuse. That means it arrives as data and has to be handed to the browser as
-// a download deliberately.
+// Fetched through the API client so the auth header travels with the file.
 
 import { api, errorMessage } from "./api";
 
-export async function downloadExport(name, params, toast) {
+export async function downloadExport(name, params, toast, ext = "csv") {
   try {
-    const response = await api.get(`/documents/exports/${name}.csv`, {
+    const response = await api.get(`/documents/exports/${name}.${ext}`, {
       params,
       responseType: "blob",
     });
@@ -17,7 +12,7 @@ export async function downloadExport(name, params, toast) {
     const url = URL.createObjectURL(response.data);
     const link = document.createElement("a");
     link.href = url;
-    link.download = filenameFrom(response) || `${name}.csv`;
+    link.download = filenameFrom(response) || `${name}.${ext}`;
     link.click();
 
     // Released once the click has been handled, or the blob is held for the
@@ -50,9 +45,9 @@ async function blobError(error) {
 
 // A PDF is opened rather than saved: it is a document to read, and the browser's
 // own viewer is better at that than the downloads folder.
-export async function openPdf(path, toast) {
+export async function openPdf(path, toast, params) {
   try {
-    const response = await api.get(path, { responseType: "blob" });
+    const response = await api.get(path, { params, responseType: "blob" });
     const url = URL.createObjectURL(response.data);
 
     // Revoking immediately would close the tab that was just handed the URL, so
