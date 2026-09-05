@@ -42,5 +42,8 @@ notificationsRouter.post("/read-all", async (req, res) => {
 
 // What the app has sent. Admin only: it lists every recipient's address.
 notificationsRouter.get("/outbox", requireRole(ROLES.ADMIN), async (req, res) => {
-  res.json({ messages: await listEmails(req.db), smtpConfigured: isSmtpConfigured() });
+  res.json({
+    messages: await listEmails(req.db),
+    smtpConfigured: await isSmtpConfigured(req.db),
+  });
 });
