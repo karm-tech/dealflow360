@@ -3,22 +3,6 @@ import { PlannedPlaceholder } from "../../components/PlannedPlaceholder";
 
 // Every screen has a route; unbuilt ones say what they will contain.
 
-export function BillingPage() {
-  return (
-    <PlannedPlaceholder
-      title="Billing"
-      area="Hybrid billing"
-      description="One-time and recurring lines on the same order."
-      willInclude={[
-        "One-time lines invoiced on confirmation",
-        "Recurring lines with their upcoming billing schedule",
-        "Proration when a subscription starts or changes mid cycle",
-        "Payments, and a credit note when a subscription is cancelled early",
-      ]}
-    />
-  );
-}
-
 export function DashboardPage() {
   return (
     <PlannedPlaceholder

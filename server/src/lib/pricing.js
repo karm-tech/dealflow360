@@ -12,7 +12,7 @@ export function monthsInPeriod(plan) {
   return (MONTHS_PER_PERIOD[plan.interval] || 1) * (plan.intervalCount || 1);
 }
 
-function round(value) {
+export function round(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
@@ -38,7 +38,9 @@ export function lineDiscountPct(line) {
 
 // The period a recurring line's start date falls inside, anchored to the
 // calendar: months to the 1st, quarters to Jan/Apr/Jul/Oct, years to January.
-function periodBounds(startDate, months) {
+// Exported so billing schedules and the first invoice agree on where a period
+// begins and ends.
+export function periodBounds(startDate, months) {
   const start = new Date(startDate);
   const year = start.getFullYear();
   const month = start.getMonth();
@@ -51,7 +53,7 @@ function periodBounds(startDate, months) {
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-function wholeDaysBetween(from, to) {
+export function wholeDaysBetween(from, to) {
   const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
   const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
   return Math.round((b - a) / MS_PER_DAY);

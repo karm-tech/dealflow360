@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Lock, Trash2 } from "lucide-react";
+import { Check, Copy, Lock, Receipt, Repeat, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import { RecordLink } from "../../components/RecordLink";
 import { RecordNav } from "../../components/RecordNav";
@@ -14,12 +14,15 @@ import {
   Input,
   Modal,
   RecordPicker,
+  SmartButton,
+  SmartButtons,
   Spinner,
   useToast,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { customerOption, searchCustomers } from "../../lib/pickers";
 import { formatDate } from "../../lib/format";
+import { quotationScope } from "../../lib/recordScopes";
 import { StatusBar } from "./StatusBar";
 import { TotalsPanel } from "./TotalsPanel";
 import { UpsellPanel } from "./UpsellPanel";
@@ -27,11 +30,16 @@ import { HistoryTimeline } from "./HistoryTimeline";
 import { AddLineControl, BulkDiscountControl, LinesTable } from "./LinesTable";
 import { RiskPreview } from "./RiskPreview";
 import { ApprovalPanel, canApprove } from "../approvals/ApprovalPanel";
-import { FulfilmentPanel } from "../fulfilment/FulfilmentPanel";
+import { FulfilmentSummary } from "../fulfilment/FulfilmentSummary";
+import { BillingSummary } from "../billing/BillingSummary";
 
 // A split only exists once a quotation has been approved.
 const SHOWS_FULFILMENT = ["APPROVED", "SENT", "UNDER_NEGOTIATION", "CONFIRMED"];
 import { useAuth } from "../../app/AuthProvider";
+
+function scrollTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 function dateInputValue(value) {
   if (!value) return "";
@@ -40,10 +48,10 @@ function dateInputValue(value) {
 
 export function QuotationBuilderPage() {
   const { id } = useParams();
-  // Opened from the approvals queue, so the breadcrumb and pager follow that
-  // queue rather than the full quotation list.
+  // Where the record was opened from decides the breadcrumb and which list the
+  // pager walks.
   const [searchParams] = useSearchParams();
-  const fromApprovals = searchParams.get("scope") === "approvals";
+  const scope = quotationScope(searchParams.get("scope"));
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -117,14 +125,10 @@ export function QuotationBuilderPage() {
   return (
     <div className="animate-fadeUp">
       <RecordNav
-        listLabel={fromApprovals ? "Approvals" : "Quotations"}
-        listTo={fromApprovals ? "/approvals" : "/quotations"}
+        listLabel={scope.label}
+        listTo={scope.listTo}
         recordId={quotation.number}
-        neighboursPath={
-          fromApprovals
-            ? `/approvals/${quotation.id}/neighbours`
-            : `/quotations/${quotation.id}/neighbours`
-        }
+        neighboursPath={scope.neighboursPath(quotation.id)}
         recordTo={(nextId) => `/quotations/${nextId}`}
       />
 
@@ -176,6 +180,36 @@ export function QuotationBuilderPage() {
               </Button>
             )}
           </>
+        }
+        aside={
+          quotation.counts && (
+            <SmartButtons>
+              <SmartButton
+                count={quotation.counts.shipments}
+                label="Shipments"
+                icon={Truck}
+                to={`/fulfilment?quotationId=${quotation.id}`}
+              />
+              <SmartButton
+                count={quotation.counts.approvals}
+                label="Approvals"
+                icon={ShieldCheck}
+                onClick={() => scrollTo("approval-panel")}
+              />
+              <SmartButton
+                count={quotation.counts.invoices}
+                label="Invoices"
+                icon={Receipt}
+                to={`/billing?quotationId=${quotation.id}`}
+              />
+              <SmartButton
+                count={quotation.counts.subscriptions}
+                label="Subscriptions"
+                icon={Repeat}
+                to={`/billing?view=subscriptions&quotationId=${quotation.id}`}
+              />
+            </SmartButtons>
+          )
         }
       />
 
@@ -318,11 +352,23 @@ export function QuotationBuilderPage() {
           </div>
 
           {hasApproval && (
-            <ApprovalPanel quotation={quotation} canAct={canApprove(user, quotation)} />
+            <div id="approval-panel" className="scroll-mt-24">
+              <ApprovalPanel quotation={quotation} canAct={canApprove(user, quotation)} />
+            </div>
           )}
 
           {SHOWS_FULFILMENT.includes(quotation.status) && (
-            <FulfilmentPanel quotation={quotation} />
+            <div id="fulfilment-panel" className="scroll-mt-24">
+              <FulfilmentSummary quotation={quotation} />
+            </div>
+          )}
+
+          {/* Billing only exists once the order is agreed, so it appears at
+              CONFIRMED rather than alongside the split. */}
+          {quotation.status === "CONFIRMED" && (
+            <div id="billing-panel" className="scroll-mt-24">
+              <BillingSummary quotation={quotation} />
+            </div>
           )}
 
           <HistoryTimeline history={quotation.history} />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PackagePlus, TriangleAlert } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
@@ -27,9 +27,14 @@ export function FulfilmentPage() {
   const { user } = useAuth();
   const [showReceipt, setShowReceipt] = useState(false);
 
+  // Set by the Shipments button on a quotation.
+  const [params, setParams] = useSearchParams();
+  const quotationId = params.get("quotationId") || "";
+
   const fulfilment = useQuery({
-    queryKey: ["fulfilment-list"],
-    queryFn: async () => (await api.get("/fulfilment")).data,
+    queryKey: ["fulfilment-list", quotationId],
+    queryFn: async () =>
+      (await api.get("/fulfilment", { params: { quotationId: quotationId || undefined } })).data,
   });
 
   if (fulfilment.isLoading) return <Spinner label="Loading fulfilment" />;
@@ -54,6 +59,17 @@ export function FulfilmentPage() {
         }
       />
 
+      {quotationId && parcels.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-100 bg-ink-50 px-3 py-2">
+          <p className="text-sm text-ink-700">
+            Showing shipments for <span className="font-medium">{parcels[0].number}</span>
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setParams({}, { replace: true })}>
+            Clear
+          </Button>
+        </div>
+      )}
+
       {parcels.length === 0 ? (
         <EmptyState
           title="Nothing waiting to ship"
@@ -63,6 +79,7 @@ export function FulfilmentPage() {
         <Table>
           <THead>
             <TR>
+              <TH>Shipment</TH>
               <TH>Order</TH>
               <TH>Customer</TH>
               <TH>Warehouse</TH>
@@ -74,7 +91,8 @@ export function FulfilmentPage() {
           </THead>
           <TBody>
             {parcels.map((parcel) => (
-              <TR key={parcel.id} onClick={() => navigate(`/quotations/${parcel.quotationId}`)}>
+              <TR key={parcel.id} onClick={() => navigate(`/fulfilment/${parcel.id}`)}>
+                <TD>{parcel.reference}</TD>
                 <TD>{parcel.number}</TD>
                 <TD>{parcel.customer}</TD>
                 <TD>{parcel.warehouse}</TD>

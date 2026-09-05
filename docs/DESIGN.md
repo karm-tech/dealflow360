@@ -200,8 +200,22 @@ One import: `import { Button, Card, Field, Input } from "../../components/ui";`
 | `StatusPill` | something is fine / needs attention / is wrong. The component that uses the state colours as a fill. |
 | `Toast` | confirms the action you just took. May use a state colour, but only on the left rail and the icon — the surface stays neutral so it never becomes the loudest thing on screen. Not the notification bell: a toast is your own action and fades, the bell is something involving you and stays. |
 | `RecordPicker` | picks one related record by typing. Searches on the server, so it replaces a `<select>` wherever the list can grow. |
+| `SmartButton` / `SmartButtons` | related records reachable from a form, with their count. The count leads; a zero count renders inert rather than disappearing, so a form keeps its shape from one record to the next. Counts arrive with the record, never as a request per button. |
 | `Spinner` `ErrorState` `EmptyState` | the three things a screen can be doing other than showing data. `ErrorState` always says what to do next; `EmptyState`'s hint should say how the first row gets here. |
 | `Modal` | confirmations and small forms. Escape closes it and background scroll is locked. |
+
+### What a smart button may count
+
+**A count is of live records only.** Cancelled quotations and returned parcels
+are dead history: they stay reachable through a list's own stage filter, but a
+number meant to signal activity must not include them.
+
+Counts on one record are also **disjoint**, so the same thing is never counted
+twice. A customer shows *Open* (draft through under-negotiation) and *Orders*
+(confirmed) — never a total that already contains the orders.
+
+The label has to describe the number. A parcel has one source order, so a count
+of three beside "Source order" is wrong; it is three *shipments*.
 
 App-level pieces live one level up in `src/components`: `Layout`, `PortalLayout`,
 `InstanceMarker` (the demo rail and the mode chip), `PageHeader`,

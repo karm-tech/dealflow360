@@ -117,6 +117,15 @@ export const PIPELINE_STAGES = [
   "CONFIRMED",
 ];
 
+// Deals still in play. Cancelled ones are dead history and are counted nowhere.
+export const OPEN_QUOTATION_STATUSES = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "SENT",
+  "UNDER_NEGOTIATION",
+].join(",");
+
 export const FULFILMENT_STATUS_LABELS = {
   SUGGESTED: "Suggested",
   ACCEPTED: "Allocated",
@@ -143,4 +152,56 @@ export const BILLING_TYPE = {
 export const BILLING_TYPE_LABELS = {
   ONE_TIME: "One-time",
   RECURRING: "Recurring",
+};
+
+export const INVOICE_STATUS_LABELS = {
+  DRAFT: "Draft",
+  ISSUED: "Issued",
+  PARTIALLY_PAID: "Part paid",
+  PAID: "Paid",
+  CANCELLED: "Cancelled",
+};
+
+export const INVOICE_STATUS_TONES = {
+  DRAFT: "neutral",
+  ISSUED: "info",
+  PARTIALLY_PAID: "warn",
+  PAID: "ok",
+  CANCELLED: "bad",
+};
+
+export const SUBSCRIPTION_STATUS_LABELS = {
+  ACTIVE: "Active",
+  PAUSED: "Paused",
+  CANCELLED: "Cancelled",
+  ENDED: "Ended",
+};
+
+export const SUBSCRIPTION_STATUS_TONES = {
+  ACTIVE: "ok",
+  PAUSED: "warn",
+  CANCELLED: "bad",
+  ENDED: "neutral",
+};
+
+// A period on a subscription's schedule.
+export const SCHEDULE_STATUS_LABELS = {
+  SCHEDULED: "Scheduled",
+  INVOICED: "Invoiced",
+  PAID: "Paid",
+};
+
+export const SCHEDULE_STATUS_TONES = {
+  SCHEDULED: "neutral",
+  INVOICED: "info",
+  PAID: "ok",
+};
+
+export const PAYMENT_METHODS = ["CASH", "BANK", "CARD", "UPI"];
+
+export const PAYMENT_METHOD_LABELS = {
+  CASH: "Cash",
+  BANK: "Bank transfer",
+  CARD: "Card",
+  UPI: "UPI",
 };

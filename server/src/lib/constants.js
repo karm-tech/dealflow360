@@ -21,6 +21,14 @@ export const INTERNAL_ROLES = [
 // user belongs to a customer record and is created with it.
 export const ASSIGNABLE_ROLES = INTERNAL_ROLES;
 
+// Who decides warehouse splits and backorders. A rep may look at a shipment for
+// their own deal but not change it.
+export const OPS_ROLES = [ROLES.ADMIN, ROLES.FINANCE];
+
+// Who records payments, credit notes and subscription changes. Same rule for a
+// rep: their own deals are visible, none of it is theirs to change.
+export const BILLING_ROLES = [ROLES.ADMIN, ROLES.FINANCE];
+
 // Where an account stands. Only ACTIVE can log in.
 export const USER_STATUS = {
   PENDING: "PENDING",
@@ -87,6 +95,18 @@ export const INVOICE_STATUS = {
 };
 
 export const PAYMENT_METHODS = ["CASH", "BANK", "CARD", "UPI"];
+
+// Which half of a mixed order an invoice covers.
+export const INVOICE_TYPE = {
+  ONE_TIME: "ONE_TIME",
+  RECURRING: "RECURRING",
+};
+
+export const SCHEDULE_STATUS = {
+  SCHEDULED: "SCHEDULED",
+  INVOICED: "INVOICED",
+  PAID: "PAID",
+};
 
 export const PLAN_INTERVALS = {
   MONTH: "MONTH",

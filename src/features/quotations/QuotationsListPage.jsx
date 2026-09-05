@@ -111,6 +111,9 @@ export function QuotationsListPage() {
   const status = params.get("status") || "";
   const search = params.get("search") || "";
   const sort = params.get("sort") || "newest";
+  // Set by the related-record buttons on a customer or product.
+  const customerId = params.get("customerId") || "";
+  const productId = params.get("productId") || "";
 
   function setParam(key, value) {
     const next = new URLSearchParams(params);
@@ -119,11 +122,32 @@ export function QuotationsListPage() {
     setParams(next, { replace: true });
   }
 
-  const listQuery = { status: status || undefined, search: search || undefined, sort };
+  const listQuery = {
+    status: status || undefined,
+    search: search || undefined,
+    customerId: customerId || undefined,
+    productId: productId || undefined,
+    sort,
+  };
 
   const quotations = useQuery({
-    queryKey: ["quotations", status, search, sort],
+    queryKey: ["quotations", status, search, customerId, productId, sort],
     queryFn: async () => (await api.get("/quotations", { params: listQuery })).data.quotations,
+  });
+
+  // Naming the record filter matters: a list narrowed by something the user
+  // cannot see reads as missing records.
+  const recordFilter = useQuery({
+    queryKey: ["list-filter", customerId, productId],
+    enabled: Boolean(customerId || productId),
+    queryFn: async () => {
+      if (customerId) {
+        const { data } = await api.get(`/catalogue/customers/${customerId}`);
+        return { label: data.customer.name, key: "customerId" };
+      }
+      const { data } = await api.get(`/catalogue/products/${productId}`);
+      return { label: data.product.name, key: "productId" };
+    },
   });
 
   if (quotations.isLoading) return <Spinner label="Loading quotations" />;
@@ -146,6 +170,17 @@ export function QuotationsListPage() {
           </Button>
         }
       />
+
+      {recordFilter.data && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-100 bg-ink-50 px-3 py-2">
+          <p className="text-sm text-ink-700">
+            Showing quotations for <span className="font-medium">{recordFilter.data.label}</span>
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setParam(recordFilter.data.key, "")}>
+            Clear
+          </Button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Field label="Search" htmlFor="search">
