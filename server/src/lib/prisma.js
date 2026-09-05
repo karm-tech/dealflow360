@@ -11,9 +11,9 @@ import { DB_MODES } from "./constants.js";
 // They are two different files opened by two different connections. Nothing is
 // shared, so a change made while exploring the demo cannot reach live records.
 //
-// Explain to judge: demo and live are two separate SQLite files with two
-// database connections. Which one you get is decided by your login token, not
-// by a setting you can flip, so demo data can never leak into real records.
+// Demo and live are two separate SQLite files with two database connections.
+// Which one you get is decided by your login token, not by a setting you can
+// flip, so demo data can never leak into real records.
 
 // Prisma resolves a relative sqlite path against the folder holding
 // schema.prisma. When we override the url at runtime that starting point is no

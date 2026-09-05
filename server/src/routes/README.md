@@ -21,4 +21,4 @@ The only exception is the handful of routes that run *before* a token exists
 caller asked for, which is safe: picking which instance to sign in to is the
 caller's decision, and each database holds a separate list of accounts.
 
-Every later phase copies this pattern.
+Every route follows this pattern.

@@ -1,13 +1,13 @@
 import { PhasePlaceholder } from "../../components/PhasePlaceholder";
 
-// Every screen the plan calls for has a route from day one. Each one names the
-// phase that fills it, so the shell is honest about what is and is not built.
+// Every screen has a route from day one. Each unbuilt one says what it will
+// contain, so the app is honest about what is and is not working yet.
 
 export function QuotationsPage() {
   return (
     <PhasePlaceholder
       title="Quotations"
-      phase="Phase 2 — Core loop"
+      area="Core loop"
       description="Active and draft quotations for your customers."
       willInclude={[
         "Quotation list with customer, amount and stage",
@@ -23,7 +23,7 @@ export function PipelinePage() {
   return (
     <PhasePlaceholder
       title="Pipeline"
-      phase="Phase 2 — Core loop"
+      area="Core loop"
       description="Deals grouped by stage."
       willInclude={["Kanban board by quotation status", "Open a card to edit the deal"]}
     />
@@ -34,7 +34,7 @@ export function ApprovalsPage() {
   return (
     <PhasePlaceholder
       title="Approvals"
-      phase="Phase 3 — Governance"
+      area="Governance"
       description="Quotations waiting on you."
       willInclude={[
         "Blended discount risk score for each quotation",
@@ -50,7 +50,7 @@ export function FulfilmentPage() {
   return (
     <PhasePlaceholder
       title="Fulfilment"
-      phase="Phase 4 — Fulfilment"
+      area="Fulfilment"
       description="Where each order ships from."
       willInclude={[
         "Suggested warehouse split based on live stock",
@@ -66,7 +66,7 @@ export function BillingPage() {
   return (
     <PhasePlaceholder
       title="Billing"
-      phase="Phase 5 — Hybrid billing"
+      area="Hybrid billing"
       description="One-time and recurring lines on the same order."
       willInclude={[
         "One-time lines invoiced on confirmation",
@@ -82,7 +82,7 @@ export function DashboardPage() {
   return (
     <PhasePlaceholder
       title="Deal Health"
-      phase="Phase 8 — Dashboard and reports"
+      area="Dashboard and reports"
       description="Deals that need attention."
       willInclude={[
         "Stalled deals, discount anomalies and delivery slippage",
@@ -98,7 +98,7 @@ export function BackendPage() {
   return (
     <PhasePlaceholder
       title="Back-end configuration"
-      phase="Phase 7 — Admin config"
+      area="Admin config"
       description="Everything the rules read from, editable here."
       willInclude={[
         "Products, variants and price lists",
@@ -116,7 +116,7 @@ export function PortalPage() {
   return (
     <PhasePlaceholder
       title="Your quotations"
-      phase="Phase 6 — Customer portal"
+      area="Customer portal"
       description="Review, comment on and confirm the quotations sent to you."
       willInclude={[
         "Quotation details and current status",

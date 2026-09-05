@@ -2,12 +2,12 @@
 //
 // Two rules this file follows on purpose:
 //  1. Every product combination the app supports appears here, so the later
-//     phases (fulfilment, billing, portal, dashboard) have something real to
+//     features (fulfilment, billing, portal, dashboard) have something real to
 //     work on the moment they are built.
 //  2. Nothing is faked. A "stalled" quote is stalled because its real activity
 //     timestamp is two weeks old, not because a stalled flag was set. The
-//     problem statement forbids hardcoding rules for the demo, so the
-//     detectors have to find these on their own.
+//     rules are never hardcoded for the sample data, so the detectors have to
+//     find these on their own.
 //
 // Run with:  npm run seed
 
@@ -481,7 +481,7 @@ async function createQuotations(customers, users, products) {
 
   // 1) The worked example from the flow map: one quote mixing all four kinds of
   //    line. The Setup Service line is over its own 10% ceiling on purpose —
-  //    this is what makes the risk score flag the whole quotation in Phase 3.
+  //    this is what makes the risk score flag the whole quotation.
   const acme = await createQuotation({
     number: "DF-Q-1001",
     customer: customers["Acme Corp"],
@@ -638,7 +638,7 @@ async function seedLive() {
 
 // The demo instance gets everything: the full catalogue, customers, portal
 // logins, worked-example quotations and the deliberately unhealthy deals the
-// later phases need something real to detect.
+// detectors need something real to find.
 async function seedDemo() {
   const products = await seedMasterData();
 

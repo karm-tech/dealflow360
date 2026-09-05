@@ -91,9 +91,8 @@ authRouter.post("/login", async (req, res) => {
 
 // Signup for internal staff. It does NOT create a working account.
 //
-// Explain to judge: the spec allows internal signup, but this system governs
-// discount approvals — letting anyone create their own sales account would be a
-// hole. So signing up creates a request with no role and no token, and an admin
+// Internal signup is supported, but this system governs discount approvals —
+// letting anyone create their own sales account would be a hole. So signing up creates a request with no role and no token, and an admin
 // decides both whether to approve it and which role it gets.
 authRouter.post("/signup", async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
@@ -150,8 +149,8 @@ authRouter.get("/me", requireAuth, async (req, res) => {
   res.json({ user: publicUser(user), mode: req.dbMode });
 });
 
-// Small helper the login screen uses to list the demo accounts, so a judge can
-// sign in as any role without being handed a list of addresses.
+// Small helper the demo page uses to list its accounts, so anyone trying the
+// app can sign in as any role without being handed a list of addresses.
 //
 // Demo instance only. This route needs no login, and the live database holds
 // real people's addresses — handing those out to anyone who asks would be a

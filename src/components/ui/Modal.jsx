@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 
-// A dialog for confirmations and small forms. Later phases use it for things
-// like "override the warehouse split" and "cancel this subscription".
+// A dialog for confirmations and small forms — "override the warehouse split",
+// "cancel this subscription", and similar.
 //
 // Escape closes it and the background scroll is locked while it is open,
 // because a dialog you can scroll behind feels broken.
