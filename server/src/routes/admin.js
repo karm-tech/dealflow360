@@ -136,3 +136,67 @@ adminRouter.post("/access-requests/:id/reject", async (req, res) => {
 
   res.json({ request: requestView(updated) });
 });
+
+// --- portal settings --------------------------------------------------------
+
+const portalSettingsSchema = z.object({
+  portalSalesRepId: z.number().int().positive().nullable(),
+  portalDefaultTierId: z.string().min(1, "Choose a starting tier"),
+});
+
+// Anyone who could own a portal request. A manager may carry deals themselves,
+// so both selling roles are offered.
+const OWNING_ROLES = [ROLES.SALES_REP, ROLES.SALES_MANAGER];
+
+adminRouter.get("/portal-settings", async (req, res) => {
+  const [settings, reps, tiers] = await Promise.all([
+    req.db.settings.findUnique({ where: { id: 1 } }),
+    req.db.user.findMany({
+      where: { role: { in: OWNING_ROLES }, status: USER_STATUS.ACTIVE },
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: { name: "asc" },
+    }),
+    req.db.tier.findMany({ orderBy: { sequence: "asc" } }),
+  ]);
+
+  res.json({
+    settings: {
+      portalSalesRepId: settings?.portalSalesRepId ?? null,
+      portalDefaultTierId: settings?.portalDefaultTierId ?? null,
+    },
+    reps,
+    tiers: tiers.map((tier) => ({ id: tier.id, name: tier.name })),
+  });
+});
+
+adminRouter.patch("/portal-settings", async (req, res) => {
+  const parsed = portalSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0].message });
+  }
+
+  const { portalSalesRepId, portalDefaultTierId } = parsed.data;
+
+  if (portalSalesRepId !== null) {
+    const rep = await req.db.user.findUnique({ where: { id: portalSalesRepId } });
+    if (!rep || !OWNING_ROLES.includes(rep.role) || rep.status !== USER_STATUS.ACTIVE) {
+      return res.status(400).json({ error: "Choose an active salesperson" });
+    }
+  }
+
+  if (!(await req.db.tier.findUnique({ where: { id: portalDefaultTierId } }))) {
+    return res.status(400).json({ error: "Choose a starting tier" });
+  }
+
+  const settings = await req.db.settings.update({
+    where: { id: 1 },
+    data: { portalSalesRepId, portalDefaultTierId },
+  });
+
+  res.json({
+    settings: {
+      portalSalesRepId: settings.portalSalesRepId,
+      portalDefaultTierId: settings.portalDefaultTierId,
+    },
+  });
+});
