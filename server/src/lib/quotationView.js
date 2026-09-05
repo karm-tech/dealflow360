@@ -1,9 +1,9 @@
 // Shapes what the browser receives. Margin never leaves the building: it is
 // added only for internal roles, so no customer-facing response can carry it.
 
-import { APPROVAL_STATUS, INTERNAL_ROLES } from "./constants.js";
+import { APPROVAL_STATUS, INTERNAL_ROLES, ROLES } from "./constants.js";
 import { quotationTotals } from "./pricing.js";
-import { isEditable } from "./quotationRules.js";
+import { isEditable, canMessage } from "./quotationRules.js";
 import { scoreQuotation } from "./risk.js";
 import { onHandQty, shortStockLines } from "./stock.js";
 import { defaultRenewalLeadDays, maxRenewalLeadDays } from "./renewal.js";
@@ -22,7 +22,7 @@ export const QUOTATION_INCLUDE = {
   },
   renewsSubscription: { select: { id: true, reference: true } },
   portalMessages: {
-    include: { author: { select: { id: true, name: true } } },
+    include: { author: { select: { id: true, name: true, role: true } } },
     orderBy: { createdAt: "asc" },
   },
   // Counted rather than loaded: the form only shows how many shipments exist.
@@ -113,6 +113,7 @@ export function quotationDetail(
     number: quotation.number,
     status: quotation.status,
     isEditable: isEditable(quotation.status),
+    canMessage: canMessage(quotation.status),
     customer: {
       id: quotation.customer.id,
       name: quotation.customer.name,
@@ -144,12 +145,20 @@ export function quotationDetail(
     stockWarnings: short,
     // The customer's own words — what they asked for, and why they sent it
     // back. Both sides read the same thread.
-    messages: (quotation.portalMessages || []).map((message) => ({
-      id: message.id,
-      text: message.text,
-      by: message.author ? message.author.name : "Customer",
-      at: message.createdAt,
-    })),
+    messages: (quotation.portalMessages || []).map((message) => {
+      const line = (quotation.lines || []).find((row) => row.id === message.quotationLineId);
+
+      return {
+        id: message.id,
+        text: message.text,
+        by: message.author ? message.author.name : "Customer",
+        fromCustomer: message.author ? message.author.role === ROLES.CUSTOMER : true,
+        at: message.createdAt,
+        lineId: message.quotationLineId || null,
+        lineName: line ? line.product.name : null,
+        counterDiscountPct: message.counterDiscountPct ?? null,
+      };
+    }),
     totals: {
       oneTimeNet: totals.oneTimeNet,
       recurringMonthlyNet: totals.recurringMonthlyNet,

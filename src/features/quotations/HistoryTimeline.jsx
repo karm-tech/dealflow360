@@ -9,6 +9,8 @@ const ACTION_LABELS = {
   QUOTATION_REJECTED: "Rejected",
   QUOTATION_SENT: "Sent to customer",
   QUOTATION_ACCEPTED: "Accepted",
+  QUOTATION_NEGOTIATED: "Customer requested changes",
+  QUOTATION_MESSAGE: "Message on the quotation",
   QUOTATION_REJECTED_BY_CUSTOMER: "Turned down by the customer",
   QUOTATION_DUPLICATED: "Duplicated",
   LINE_ADDED: "Line added",

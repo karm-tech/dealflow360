@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Clock, FileText, MessageSquare, X } from "lucide-react";
+import { ArrowLeft, Check, Clock, FileText, RefreshCw, X } from "lucide-react";
 import {
   Button,
   Card,
   CardHeader,
   ErrorState,
   Field,
+  Input,
   Modal,
   Spinner,
   StatusPill,
@@ -23,6 +24,7 @@ import {
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
 import { openPdf } from "../../lib/exports";
+import { QuotationThread } from "../quotations/QuotationThread";
 
 // What happened, oldest first, in the customer's own terms. The server decides
 // which events they see; this only draws them.
@@ -64,8 +66,8 @@ function RejectDialog({ open, isBusy, onClose, onConfirm }) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Send this back to us"
-      description="Tell us what is wrong and we will look at it again. Your rep sees this straight away."
+      title="Turn this quotation down"
+      description="This closes the deal. If you want different terms, request changes instead."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -77,20 +79,130 @@ function RejectDialog({ open, isBusy, onClose, onConfirm }) {
             disabled={reason.trim().length < 5}
             onClick={() => onConfirm(reason.trim())}
           >
-            Send it back
+            Turn it down
           </Button>
         </>
       }
     >
-      <Field label="Your reasons" htmlFor="reject-reason" tooltip="Sent back to the sales team with the quotation. Required to decline.">
+      <Field
+        label="Your reasons"
+        htmlFor="reject-reason"
+        tooltip="Sent to the sales team with the quotation. Required to decline."
+      >
         <Textarea
           id="reject-reason"
           rows={4}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          placeholder="The unit price on the laptops is above the budget we were given."
+          placeholder="We have already placed this order with another supplier."
         />
       </Field>
+    </Modal>
+  );
+}
+
+function NegotiateDialog({ open, isBusy, lines, onClose, onConfirm }) {
+  const [note, setNote] = useState("");
+  const [counter, setCounter] = useState("");
+  const [lineNotes, setLineNotes] = useState({});
+
+  useEffect(() => {
+    if (!open) return;
+    setNote("");
+    setCounter("");
+    setLineNotes({});
+  }, [open]);
+
+  const comments = (lines || [])
+    .map((line) => ({ lineId: line.id, text: (lineNotes[line.id] || "").trim() }))
+    .filter((row) => row.text.length > 0);
+  const parsedCounter = counter === "" ? null : Number(counter);
+  const hasCounter = Number.isFinite(parsedCounter) && parsedCounter >= 0 && parsedCounter <= 100;
+  const canSubmit = note.trim().length >= 5 || hasCounter || comments.length > 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Request changes"
+      description="Tell us what to change. Your rep reviews this and sends a revised quotation. Prices do not change until they do."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            isLoading={isBusy}
+            disabled={!canSubmit}
+            onClick={() =>
+              onConfirm({
+                note: note.trim(),
+                counterDiscountPct: hasCounter ? parsedCounter : null,
+                lineComments: comments,
+              })
+            }
+          >
+            Send request
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field
+          label="Discount you want"
+          htmlFor="counter-discount"
+          hint="Optional. A percentage off the current prices — your rep decides whether to apply it."
+          tooltip="Stored as a request. It is not written onto the quotation until the sales team revises it."
+        >
+          <Input
+            id="counter-discount"
+            type="number"
+            min={0}
+            max={100}
+            step={0.5}
+            value={counter}
+            onChange={(event) => setCounter(event.target.value)}
+            placeholder="e.g. 18"
+          />
+        </Field>
+
+        <Field
+          label="What should change"
+          htmlFor="negotiate-note"
+          tooltip="A general note on the quotation. Use the line boxes below for a specific product."
+        >
+          <Textarea
+            id="negotiate-note"
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Last year’s deal on the switches was 18%. Please match that."
+          />
+        </Field>
+
+        {lines.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-sand-700">Comment on a line</p>
+            {lines.map((line) => (
+              <Field
+                key={line.id}
+                label={`${line.productName}${line.discountPct ? ` · ${line.discountPct}% off now` : ""}`}
+                htmlFor={`line-note-${line.id}`}
+              >
+                <Textarea
+                  id={`line-note-${line.id}`}
+                  rows={2}
+                  value={lineNotes[line.id] || ""}
+                  onChange={(event) =>
+                    setLineNotes((current) => ({ ...current, [line.id]: event.target.value }))
+                  }
+                  placeholder="Optional note on this product"
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }
@@ -102,6 +214,7 @@ export function PortalQuotationPage() {
   const toast = useToast();
 
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isNegotiating, setIsNegotiating] = useState(false);
 
   const query = useQuery({
     queryKey: ["portal-quotation", id],
@@ -116,7 +229,7 @@ export function PortalQuotationPage() {
 
   const approve = useMutation({
     mutationFn: () => api.post(`/portal/quotations/${id}/approve`),
-    onSuccess: () => afterDecision("Approved. We will get this moving straight away."),
+    onSuccess: () => afterDecision("Accepted. We will get this moving straight away."),
     onError: (error) => toast(errorMessage(error), "error"),
   });
 
@@ -124,7 +237,25 @@ export function PortalQuotationPage() {
     mutationFn: (reason) => api.post(`/portal/quotations/${id}/reject`, { reason }),
     onSuccess: () => {
       setIsRejecting(false);
-      afterDecision("Sent back. Your rep will be in touch.");
+      afterDecision("Turned down. Your rep has been told.");
+    },
+    onError: (error) => toast(errorMessage(error), "error"),
+  });
+
+  const negotiate = useMutation({
+    mutationFn: (body) => api.post(`/portal/quotations/${id}/negotiate`, body),
+    onSuccess: () => {
+      setIsNegotiating(false);
+      afterDecision("Request sent. We will revise this and send it back.");
+    },
+    onError: (error) => toast(errorMessage(error), "error"),
+  });
+
+  const sendMessage = useMutation({
+    mutationFn: (text) => api.post(`/portal/quotations/${id}/messages`, { text }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portal-quotation", id] });
+      toast("Message sent");
     },
     onError: (error) => toast(errorMessage(error), "error"),
   });
@@ -135,7 +266,7 @@ export function PortalQuotationPage() {
   }
 
   const quotation = query.data;
-  const isBusy = approve.isPending || reject.isPending;
+  const isBusy = approve.isPending || reject.isPending || negotiate.isPending;
 
   return (
     <div className="animate-fadeUp">
@@ -179,25 +310,41 @@ export function PortalQuotationPage() {
                   This is ready for your decision
                 </p>
                 <p className="mt-0.5 text-sm text-sand-700">
-                  Approving it confirms the order and we start work. Sending it back tells us what
-                  to change.
+                  Accepting it confirms the order and we start work. Request changes if the terms
+                  are not right. Turning it down closes the deal.
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
                 icon={X}
                 disabled={isBusy}
                 onClick={() => setIsRejecting(true)}
               >
-                Send it back
+                Turn it down
+              </Button>
+              <Button
+                variant="secondary"
+                icon={RefreshCw}
+                disabled={isBusy}
+                onClick={() => setIsNegotiating(true)}
+              >
+                Request changes
               </Button>
               <Button icon={Check} isLoading={approve.isPending} onClick={() => approve.mutate()}>
-                Approve
+                Accept
               </Button>
             </div>
           </div>
+        </Card>
+      )}
+
+      {quotation.isRevising && (
+        <Card className="mb-6 border-sand-200 bg-sand-50">
+          <p className="text-base text-sand-800">
+            We are revising this for you. You can accept it once the new terms are sent back.
+          </p>
         </Card>
       )}
 
@@ -209,6 +356,7 @@ export function PortalQuotationPage() {
                 <TH>Product</TH>
                 <TH align="right">Qty</TH>
                 <TH align="right">Unit price</TH>
+                <TH align="right">Discount</TH>
                 <TH align="right">Total</TH>
               </TR>
             </THead>
@@ -228,6 +376,9 @@ export function PortalQuotationPage() {
                   </TD>
                   <TD align="right" className="figure">
                     {formatMoney(line.unitPrice)}
+                  </TD>
+                  <TD align="right" className="figure">
+                    {line.discountPct ? `${line.discountPct}%` : "—"}
                   </TD>
                   <TD align="right" className="figure">
                     {formatMoney(line.total)}
@@ -265,29 +416,13 @@ export function PortalQuotationPage() {
           <Timeline entries={quotation.history} />
         </Card>
 
-        <Card>
-          <CardHeader title="What you told us" />
-          {quotation.messages.length === 0 ? (
-            <p className="text-sm text-sand-600">You have not added any notes to this one.</p>
-          ) : (
-            <ul className="space-y-3">
-              {quotation.messages.map((message) => (
-                <li key={message.id} className="flex gap-2.5">
-                  <MessageSquare
-                    className="mt-0.5 h-4 w-4 shrink-0 text-sand-400"
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <p className="text-sm text-sand-800">{message.text}</p>
-                    <p className="figure mt-0.5 text-xs text-sand-500">
-                      {message.by} · {formatDate(message.at)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <QuotationThread
+          messages={quotation.messages}
+          canReply={quotation.canMessage}
+          isBusy={sendMessage.isPending}
+          viewerIsCustomer
+          onSend={(text) => sendMessage.mutate(text)}
+        />
       </div>
 
       <RejectDialog
@@ -295,6 +430,14 @@ export function PortalQuotationPage() {
         isBusy={reject.isPending}
         onClose={() => setIsRejecting(false)}
         onConfirm={(reason) => reject.mutate(reason)}
+      />
+
+      <NegotiateDialog
+        open={isNegotiating}
+        isBusy={negotiate.isPending}
+        lines={quotation.lines || []}
+        onClose={() => setIsNegotiating(false)}
+        onConfirm={(body) => negotiate.mutate(body)}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import { QUOTATION_INCLUDE, quotationSummary } from "../lib/quotationView.js";
 import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
 import { scoreQuotation } from "../lib/risk.js";
 import { suggestFulfilment } from "../lib/fulfilmentService.js";
+import { deliverToCustomer, hasBeenSentToCustomer } from "../lib/quotationDelivery.js";
 
 export const approvalsRouter = Router();
 
@@ -163,9 +164,14 @@ approvalsRouter.post("/:id/approve", async (req, res) => {
       quotationId: quotation.id,
     });
   } else {
+    // A quote the customer already saw goes back to them; a first approval
+    // still stops at APPROVED so the rep can send it.
+    const sendBack = await hasBeenSentToCustomer(req.db, quotation.id);
+    const nextStatus = sendBack ? QUOTATION_STATUS.SENT : QUOTATION_STATUS.APPROVED;
+
     await req.db.quotation.update({
       where: { id: quotation.id },
-      data: { status: QUOTATION_STATUS.APPROVED, approvalPendingSince: null },
+      data: { status: nextStatus, approvalPendingSince: null },
     });
 
     await logActivity(req.db, {
@@ -178,11 +184,18 @@ approvalsRouter.post("/:id/approve", async (req, res) => {
     // Approval is where the split is worked out. Nothing is reserved yet.
     await suggestFulfilment(req.db, quotation.id);
 
+    if (sendBack) {
+      const fresh = await loadWithSteps(req.db, quotation.id);
+      await deliverToCustomer(req.db, req.dbMode, fresh, req.user.id, { isResend: true });
+    }
+
     await notify(req.db, req.dbMode, {
       users: [quotation.rep],
       type: NOTIFICATION_TYPES.QUOTATION_APPROVED,
       title: `${quotation.number} approved`,
-      body: `${quotation.customer.name} · ready to send to the customer`,
+      body: sendBack
+        ? `${quotation.customer.name} · revised terms sent back to the customer`
+        : `${quotation.customer.name} · ready to send to the customer`,
       quotationId: quotation.id,
     });
   }

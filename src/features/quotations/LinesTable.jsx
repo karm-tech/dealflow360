@@ -164,6 +164,7 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
                 max={100}
                 suffix="%"
                 disabled={!isEditable || isBusy}
+                ariaLabel={`Discount on ${line.productName}`}
                 onCommit={(discountPct) => onUpdateLine(line.id, { discountPct })}
               />
             </TD>

@@ -16,6 +16,8 @@ import { portalHistory } from "../lib/portalHistory.js";
 import { logActivity } from "../lib/activity.js";
 import { acceptQuotation } from "../lib/acceptance.js";
 import { notify, NOTIFICATION_TYPES } from "../lib/notify.js";
+import { canMessage } from "../lib/quotationRules.js";
+import { postQuotationMessage } from "../lib/quotationThread.js";
 
 export const portalRouter = Router();
 
@@ -274,7 +276,7 @@ const PORTAL_STATUS = {
   [QUOTATION_STATUS.SENT]: { label: "Waiting for your decision", tone: "warn" },
   [QUOTATION_STATUS.UNDER_NEGOTIATION]: { label: "Being revised for you", tone: "warn" },
   [QUOTATION_STATUS.CONFIRMED]: { label: "Confirmed", tone: "ok" },
-  [QUOTATION_STATUS.REJECTED]: { label: "You sent this back", tone: "bad" },
+  [QUOTATION_STATUS.REJECTED]: { label: "You turned this down", tone: "bad" },
   [QUOTATION_STATUS.CANCELLED]: { label: "Withdrawn", tone: "bad" },
 };
 
@@ -343,6 +345,8 @@ portalRouter.get("/quotations/:id", async (req, res) => {
       requestedDeliveryDate: detail.requestedDeliveryDate,
       rep: detail.rep ? detail.rep.name : null,
       canDecide: quotation.status === QUOTATION_STATUS.SENT,
+      isRevising: quotation.status === QUOTATION_STATUS.UNDER_NEGOTIATION,
+      canMessage: isReadable && canMessage(quotation.status),
       // Lines and figures appear only once it has been sent; until then the
       // customer is told it is being prepared and nothing more.
       isReadable,
@@ -418,4 +422,124 @@ portalRouter.post("/quotations/:id/reject", async (req, res) => {
   });
 
   res.json({ status: QUOTATION_STATUS.REJECTED });
+});
+
+const negotiateSchema = z
+  .object({
+    note: z.string().trim().max(2000).optional().default(""),
+    counterDiscountPct: z.number().min(0, "Discount cannot be negative").max(100, "Discount cannot be over 100%").nullable().optional(),
+    lineComments: z
+      .array(
+        z.object({
+          lineId: z.number().int().positive(),
+          text: z.string().trim().min(1, "A line comment cannot be empty").max(1000),
+        }),
+      )
+      .optional()
+      .default([]),
+  })
+  .refine(
+    (data) => data.note.length >= 5 || data.counterDiscountPct != null || data.lineComments.length > 0,
+    { message: "Tell us what to change, ask for a discount, or comment on a line" },
+  );
+
+portalRouter.post("/quotations/:id/negotiate", async (req, res) => {
+  const parsed = negotiateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const quotation = await loadOwnQuotation(req, Number(req.params.id));
+  if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
+
+  if (quotation.status !== QUOTATION_STATUS.SENT) {
+    return res.status(409).json({ error: "This quotation is not waiting for your decision" });
+  }
+
+  const { note, counterDiscountPct, lineComments } = parsed.data;
+  const unknownLine = lineComments.find(
+    (comment) => !quotation.lines.some((line) => line.id === comment.lineId),
+  );
+  if (unknownLine) {
+    return res.status(400).json({ error: "One of those lines is no longer on this quotation" });
+  }
+
+  // The ask is stored as messages. Line prices do not move until the rep
+  // applies the change and sends the revision.
+  if (note || counterDiscountPct != null) {
+    await req.db.portalMessage.create({
+      data: {
+        quotationId: quotation.id,
+        authorId: req.user.id,
+        text: note || `Asked for ${counterDiscountPct}% off`,
+        counterDiscountPct: counterDiscountPct ?? null,
+      },
+    });
+  }
+
+  for (const comment of lineComments) {
+    await req.db.portalMessage.create({
+      data: {
+        quotationId: quotation.id,
+        quotationLineId: comment.lineId,
+        authorId: req.user.id,
+        text: comment.text,
+      },
+    });
+  }
+
+  await req.db.quotation.update({
+    where: { id: quotation.id },
+    data: { status: QUOTATION_STATUS.UNDER_NEGOTIATION },
+  });
+
+  const summary = [
+    counterDiscountPct != null ? `asked for ${counterDiscountPct}% off` : null,
+    lineComments.length > 0
+      ? `${lineComments.length} ${lineComments.length === 1 ? "line comment" : "line comments"}`
+      : null,
+    note || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  await logActivity(req.db, {
+    quotationId: quotation.id,
+    userId: req.user.id,
+    action: "QUOTATION_NEGOTIATED",
+    detail: `${quotation.customer.name} requested changes: ${summary}`,
+  });
+
+  await notify(req.db, req.dbMode, {
+    users: [quotation.rep],
+    type: NOTIFICATION_TYPES.CUSTOMER_NEGOTIATED,
+    title: `${quotation.customer.name} requested changes on ${quotation.number}`,
+    body: summary,
+    quotationId: quotation.id,
+  });
+
+  res.json({ status: QUOTATION_STATUS.UNDER_NEGOTIATION });
+});
+
+const messageSchema = z.object({
+  text: z.string().trim().min(1, "Write a message first.").max(2000),
+});
+
+portalRouter.post("/quotations/:id/messages", async (req, res) => {
+  const parsed = messageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const quotation = await loadOwnQuotation(req, Number(req.params.id));
+  if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
+
+  if (!READABLE_STATUSES.includes(quotation.status)) {
+    return res.status(409).json({ error: "This quotation is still being prepared" });
+  }
+
+  const result = await postQuotationMessage(req.db, req.dbMode, {
+    quotation,
+    authorId: req.user.id,
+    text: parsed.data.text,
+  });
+  if (result.error) return res.status(409).json({ error: result.error });
+
+  res.json({ ok: true });
 });
