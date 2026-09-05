@@ -4,16 +4,14 @@ import { DB_MODES } from "../lib/constants";
 
 const AuthContext = createContext(null);
 
-// Holds "who is logged in" and "which instance they are in" for the whole app.
-// Any screen can read it with useAuth() instead of passing props down.
+// Holds the current user and instance for the whole app; read with useAuth().
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [mode, setModeState] = useState(getMode() || DB_MODES.LIVE);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On a page refresh the token is still in localStorage but we have no user
-  // object, so ask the server who it belongs to. The server also tells us which
-  // database that token belongs to — we never decide that here.
+  // After a refresh the token survives but the user object does not, so ask the
+  // server. The instance comes back from the server, never decided here.
   useEffect(() => {
     async function loadCurrentUser() {
       if (!getToken()) {
@@ -25,7 +23,7 @@ export function AuthProvider({ children }) {
         setUser(response.data.user);
         applyMode(response.data.mode);
       } catch {
-        // Token is expired or the account was disabled — start clean.
+        // Expired token or disabled account.
         clearToken();
       } finally {
         setIsLoading(false);
@@ -48,8 +46,8 @@ export function AuthProvider({ children }) {
     return response.data.user;
   }
 
-  // Signup does not log anyone in — it files a request an admin has to approve.
-  // The caller gets the message back so it can show the waiting state.
+  // Files a request rather than creating a session; returns the message for
+  // the waiting state.
   async function requestAccess({ name, email, password, requestedRole, mode: requestedMode }) {
     const response = await api.post("/auth/signup", {
       name,

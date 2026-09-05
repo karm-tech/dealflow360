@@ -10,12 +10,11 @@ here once — not to write a one-off value into a component.
 
 > **Status colour is never brand colour.**
 
-The accent is a deep navy. Green, amber and red mean *health*: this deal is
-fine, this deal needs attention, this deal is wrong. If the brand colour were
-green, every button on the dashboard would read as "healthy" and the alerts
-would stop meaning anything.
+The accent is a deep navy. Green, amber and red mean health: fine, needs
+attention, wrong. A green brand colour would make every button on the dashboard
+read as "healthy".
 
-So: `ink` for anything the product does, `state` for anything the data says.
+`ink` for anything the product does, `state` for anything the data says.
 
 ---
 
@@ -82,19 +81,17 @@ One extra token, and it is deliberately **not** part of the state scale.
 
 | Token | Hex | Used for |
 |---|---|---|
-| `demo` | `#6E4B63` | the 3px rail above the header, chip text, the /demo entry strip |
+| `demo` | `#6E4B63` | the strip above the header, chip text, the /demo entry strip |
 | `demo-soft` | `#F3EBF0` | the "Demo data" chip background, the /login demo panel |
 | `demo-border` | `#DCC9D6` | borders on both |
 
 > **Status colours describe a deal. The demo tone describes the instance. They
 > must never be confusable.**
 
-That is the whole reason this is a muted plum and not the obvious dusty ochre.
-`warn` sits at hue 36° and `bad` at 4°, so any clay or amber would land right
-between two status colours — and "you are in the sandbox" would look identical
-to "this deal is at risk" at a glance. Plum sits at 319°, and unlike `warn` it
-actually contains blue (110 75 99 against 138 82 0), so the two read as
-different kinds of thing rather than two shades of the same warning.
+Plum rather than a warm clay or ochre: `warn` sits at hue 36° and `bad` at 4°,
+so a warm tone would land between two status colours. Plum sits at 319° and
+contains blue (110 75 99 against 138 82 0), so it reads as a different kind of
+thing rather than another shade of warning.
 
 Live mode gets a plain greyscale chip, not green — green is `state.ok` and
 would say "this is healthy" rather than "this is the real database".
@@ -211,11 +208,9 @@ App-level pieces live one level up in `src/components`: `Layout`, `PortalLayout`
 
 ## Deliberate exceptions
 
-**The demo marker is quiet, and says its piece once.** Inside the app it is a
-3px rail above the header plus a "Demo data" chip, with the full sentence in the
-chip's tooltip. The only place that spells it out is `/demo`, the entrance —
-because a permanent full-width sentence on every page is shouting the same thing
-forever, and anything shouted permanently stops being read.
+**The demo marker is quiet.** Inside the app: a strip above the header and a
+"Demo data" chip, with the full sentence in the chip's tooltip. Only `/demo`,
+the entrance, spells it out.
 
 **The customer portal reads differently.** Narrower column, no toolbar, no
 staff navigation. It is a separate restricted view, not the internal app with

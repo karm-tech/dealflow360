@@ -1,10 +1,5 @@
-// Two different things, kept apart on purpose.
-//
-// Badge      neutral label — a tier, a role, a count. No meaning attached.
-// StatusPill something is fine / needs attention / is wrong.
-//
-// Only StatusPill is allowed to use the state colours. If a plain label starts
-// showing up in green, a reader will think it means "healthy".
+// Badge is a neutral label: a tier, a role, a count. StatusPill carries health.
+// Only StatusPill may use the state colours.
 
 export function Badge({ className = "", children }) {
   return (
@@ -22,7 +17,7 @@ const TONES = {
   bad: "bg-state-badSoft text-state-bad border-state-badBorder",
   // For a status that carries no judgement, e.g. Draft.
   neutral: "bg-sand-100 text-sand-700 border-sand-200",
-  // For a status that is simply "in progress on our side", e.g. Sent.
+  // For a status that is simply work in progress, e.g. Sent.
   info: "bg-ink-50 text-ink-700 border-ink-200",
 };
 

@@ -1,15 +1,6 @@
-// Demo data for DealFlow360.
-//
-// Two rules this file follows on purpose:
-//  1. Every product combination the app supports appears here, so the later
-//     features (fulfilment, billing, portal, dashboard) have something real to
-//     work on the moment they are built.
-//  2. Nothing is faked. A "stalled" quote is stalled because its real activity
-//     timestamp is two weeks old, not because a stalled flag was set. The
-//     rules are never hardcoded for the sample data, so the detectors have to
-//     find these on their own.
-//
-// Run with:  npm run seed
+// Seed data. Covers every product combination the app supports, and the states
+// are real: a stalled quote has an old activity timestamp rather than a flag,
+// so the detectors have to find it themselves.
 
 import "dotenv/config";
 import bcrypt from "bcryptjs";
@@ -22,13 +13,9 @@ import {
   USER_STATUS,
 } from "../src/lib/constants.js";
 
-// Which database this run writes to.
-//
-//   npm run seed        -> demo.db  full sample data, for exploring and demos
-//   npm run seed:live   -> dev.db   master data only, a clean starting instance
-//
-// One variable at the top decides it, so every function below writes to the
-// right file without having the client passed down through all of them.
+// Which database this run writes to:
+//   npm run seed       -> demo.db  full sample data
+//   npm run seed:live  -> dev.db   master data only
 const isLive = process.argv.includes("--live");
 const db = isLive ? liveDb : demoDb;
 
@@ -118,8 +105,7 @@ async function createPlans() {
   });
 }
 
-// Ceilings differ by category because margins differ. Services are thin, so a
-// rep may discount them far less than hardware even for a Gold customer.
+// Ceilings differ by category because margins differ.
 async function createCategories() {
   const hardware = await db.category.create({
     data: { name: "Hardware", discountCeilingPct: 15 },
@@ -411,17 +397,14 @@ async function createUsers(customers) {
   return users;
 }
 
-// People who have signed up and are waiting on an admin. They have no role at
-// all, which is the point: a request cannot grant itself anything. Seeded so
-// the Access Requests screen has something real on it the first time it opens.
+// Signups waiting on an admin. No role at all until one is granted.
 async function createAccessRequests() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
   const pending = [
     { name: "Priya Nair", email: "priya.nair@dealflow360.test", requestedRole: ROLES.SALES_REP },
     { name: "Rohit Desai", email: "rohit.desai@dealflow360.test", requestedRole: ROLES.SALES_MANAGER },
-    // Asked to be an admin. The admin approving this decides what they really
-    // get — a good one to try on stage.
+    // Requested ADMIN; the approving admin decides what is actually granted.
     { name: "Vikram Shah", email: "vikram.shah@dealflow360.test", requestedRole: ROLES.ADMIN },
   ];
 
@@ -479,9 +462,8 @@ async function createQuotations(customers, users, products) {
   const karan = users["rep@dealflow360.test"];
   const sneha = users["rep2@dealflow360.test"];
 
-  // 1) The worked example from the flow map: one quote mixing all four kinds of
-  //    line. The Setup Service line is over its own 10% ceiling on purpose —
-  //    this is what makes the risk score flag the whole quotation.
+  // 1) One quote mixing all four kinds of line. The Setup Service line is over
+  //    its own 10% ceiling, which is what flags the whole quotation.
   const acme = await createQuotation({
     number: "DF-Q-1001",
     customer: customers["Acme Corp"],
@@ -500,9 +482,8 @@ async function createQuotations(customers, users, products) {
     ],
   });
 
-  // 2) Stalled: nothing has happened on this quote for two weeks. The dashboard
-  //    finds it by comparing lastActivityAt with today, so it is genuinely
-  //    stale rather than marked as stale.
+  // 2) Stalled: no activity for two weeks, found by comparing lastActivityAt
+  //    with today rather than by a flag.
   await createQuotation({
     number: "DF-Q-1002",
     customer: customers["Beta Industries"],
@@ -558,8 +539,7 @@ async function createQuotations(customers, users, products) {
     },
   });
 
-  // 5) Karan's history. These give the anomaly detector something to average
-  //    against — without past quotes there is no "usual" discount to compare to.
+  // 5) Karan's history, so the anomaly detector has an average to compare to.
   const history = [
     { number: "DF-Q-0901", customer: "Acme Corp", discount: 7, days: 40 },
     { number: "DF-Q-0902", customer: "Beta Industries", discount: 9, days: 34 },
@@ -597,9 +577,8 @@ async function createQuotations(customers, users, products) {
 
 // --- run --------------------------------------------------------------------
 
-// Settings, tiers, plans, categories, approval rules and the catalogue. Both
-// instances need all of it — a live installation is useless without products
-// and warehouses to sell from.
+// Master data both instances need: settings, tiers, plans, categories,
+// approval rules and the catalogue.
 async function seedMasterData() {
   console.log("Seeding configuration...");
   await createSettings();
@@ -617,9 +596,8 @@ async function seedMasterData() {
   return products;
 }
 
-// The live instance gets master data and one admin, and nothing else. No
-// customers, no quotations, no invented history — an empty order book is what
-// a fresh installation actually looks like. The admin signs in and starts work.
+// Live gets master data and one admin: an empty order book, as a fresh
+// installation would be.
 async function seedLive() {
   await seedMasterData();
 
@@ -636,9 +614,8 @@ async function seedLive() {
   });
 }
 
-// The demo instance gets everything: the full catalogue, customers, portal
-// logins, worked-example quotations and the deliberately unhealthy deals the
-// detectors need something real to find.
+// Demo gets everything: catalogue, customers, portal logins and the quotations
+// the detectors need to find.
 async function seedDemo() {
   const products = await seedMasterData();
 

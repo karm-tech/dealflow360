@@ -1,14 +1,8 @@
-// Applies the migrations to BOTH databases — live and demo.
+// Applies migrations to both databases. Prisma reads a single DATABASE_URL per
+// run, so this runs it twice with a different URL each time.
 //
-// Prisma reads one DATABASE_URL from the environment, so it can only migrate a
-// single file per run. This script runs it twice, handing it a different URL
-// each time.
-//
-// It is a Node script rather than a line in package.json because PowerShell has
-// no `VAR=value command` syntax, and Karm is on Windows. Node sets the variable
-// the same way on every platform.
-//
-// Run with:  npm run migrate:all
+// A Node script rather than an npm one-liner because PowerShell has no
+// `VAR=value command` syntax.
 
 import "dotenv/config";
 import { spawnSync } from "node:child_process";

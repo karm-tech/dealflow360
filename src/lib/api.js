@@ -1,7 +1,6 @@
 import axios from "axios";
 
-// Vite forwards anything starting with /api to the Express server, so the
-// frontend never needs to know the API's host or port.
+// Vite proxies /api to the Express server, so no host or port is hardcoded.
 export const api = axios.create({ baseURL: "/api" });
 
 const TOKEN_KEY = "dealflow360.token";
@@ -20,9 +19,8 @@ export function clearToken() {
   localStorage.removeItem(MODE_KEY);
 }
 
-// Remembered only so the banner can render before /auth/me answers. The value
-// that actually decides which database is used lives inside the signed token,
-// so changing this in the browser changes nothing on the server.
+// Cached so the marker can render before /auth/me answers. The instance the
+// server uses comes from the signed token, not from this.
 export function getMode() {
   return localStorage.getItem(MODE_KEY);
 }
@@ -31,8 +29,7 @@ export function setMode(mode) {
   localStorage.setItem(MODE_KEY, mode);
 }
 
-// Attach the login token to every request instead of remembering to add it
-// at each call site.
+// Attaches the login token to every request.
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
@@ -41,8 +38,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Turn an axios failure into the plain message the API sent, so screens can
-// show it directly without digging through the error object.
+// Extracts the API's message from an axios failure.
 export function errorMessage(error) {
   return error?.response?.data?.error || "Something went wrong. Please try again.";
 }

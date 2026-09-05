@@ -7,8 +7,7 @@ import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
 import { ROLES, ROLE_LABELS } from "../lib/constants";
 
-// The workspace menu. Each entry lists the roles allowed to see it, so the nav
-// and the route guards agree with each other.
+// Each entry lists the roles allowed to see it, matching the route guards.
 const NAV_ITEMS = [
   { to: "/quotations", label: "Quotations", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/pipeline", label: "Pipeline", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER] },
@@ -19,8 +18,8 @@ const NAV_ITEMS = [
   { to: "/access-requests", label: "Access Requests", roles: [ROLES.ADMIN] },
 ];
 
-// The active tab is marked with an underline in the accent colour rather than a
-// filled pill. Seven filled pills in a row would fight the page for attention.
+// Active tab is underlined rather than filled; filled pills compete with the
+// page content.
 function navLinkClasses({ isActive }) {
   const base = "relative rounded-md px-2.5 py-2 text-base font-medium transition-colors";
   return isActive
@@ -35,8 +34,7 @@ export function Layout() {
 
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
 
-  // Throw away everything cached and fetch it again, so the rep can be sure
-  // prices and stock are current.
+  // Drops the cache so prices, stock and approvals are refetched.
   function reloadData() {
     queryClient.invalidateQueries();
   }

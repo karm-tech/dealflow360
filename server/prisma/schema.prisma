@@ -1,9 +1,6 @@
-// DealFlow360 — data model
-//
-// SQLite has no enum type, so every "enum" here is a String with the allowed
-// values listed in a comment above it. The same values live in
-// server/src/lib/constants.js and src/lib/constants.js so the code never
-// spells them by hand.
+// SQLite has no enum type, so every "enum" is a String with its allowed values
+// listed above it. The same values live in server/src/lib/constants.js and
+// src/lib/constants.js.
 
 generator client {
   provider = "prisma-client-js"
@@ -111,11 +108,10 @@ model Product {
   salesPrice Float
   cost       Float
 
-  // Two INDEPENDENT questions about a product:
-  //   isStockable       -> does it need a warehouse? (fulfilment)
-  //   defaultBillingType-> is it charged once or every period? (billing)
-  // A rental is stockable AND recurring. A support plan is neither stockable
-  // nor one-time. Never let one field answer both questions.
+  // Two independent questions:
+  //   isStockable        -> does it need a warehouse? (fulfilment)
+  //   defaultBillingType -> charged once or every period? (billing)
+  // A rental is both; a support plan is neither. One field must not answer both.
   isStockable  Boolean @default(true)
   isReturnable Boolean @default(false)
 
@@ -230,8 +226,7 @@ model Quotation {
   rep        User     @relation("QuotationRep", fields: [repId], references: [id])
 
   // DRAFT | PENDING_APPROVAL | APPROVED | SENT | UNDER_NEGOTIATION | CONFIRMED | CANCELLED
-  // A quotation becomes an order by moving to CONFIRMED. There is no second
-  // table and nothing is copied — the record keeps its own history.
+  // A quotation becomes an order at CONFIRMED. No second table, nothing copied.
   status       String  @default("DRAFT")
   cancelReason String?
 
@@ -394,7 +389,7 @@ model BillingSchedule {
   periodStart    DateTime
   periodEnd      DateTime
   amount         Float
-  // True when the period was cut short or started late and we charged a
+  // True when the period was cut short or started late and charged at a
   // daily rate for the days actually used.
   isProrated Boolean @default(false)
   // SCHEDULED | INVOICED | PAID

@@ -1,11 +1,10 @@
-import { PhasePlaceholder } from "../../components/PhasePlaceholder";
+import { PlannedPlaceholder } from "../../components/PlannedPlaceholder";
 
-// Every screen has a route from day one. Each unbuilt one says what it will
-// contain, so the app is honest about what is and is not working yet.
+// Every screen has a route; unbuilt ones say what they will contain.
 
 export function QuotationsPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Quotations"
       area="Core loop"
       description="Active and draft quotations for your customers."
@@ -21,7 +20,7 @@ export function QuotationsPage() {
 
 export function PipelinePage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Pipeline"
       area="Core loop"
       description="Deals grouped by stage."
@@ -32,7 +31,7 @@ export function PipelinePage() {
 
 export function ApprovalsPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Approvals"
       area="Governance"
       description="Quotations waiting on you."
@@ -48,7 +47,7 @@ export function ApprovalsPage() {
 
 export function FulfilmentPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Fulfilment"
       area="Fulfilment"
       description="Where each order ships from."
@@ -64,7 +63,7 @@ export function FulfilmentPage() {
 
 export function BillingPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Billing"
       area="Hybrid billing"
       description="One-time and recurring lines on the same order."
@@ -80,7 +79,7 @@ export function BillingPage() {
 
 export function DashboardPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Deal Health"
       area="Dashboard and reports"
       description="Deals that need attention."
@@ -96,7 +95,7 @@ export function DashboardPage() {
 
 export function BackendPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Back-end configuration"
       area="Admin config"
       description="Everything the rules read from, editable here."
@@ -114,7 +113,7 @@ export function BackendPage() {
 
 export function PortalPage() {
   return (
-    <PhasePlaceholder
+    <PlannedPlaceholder
       title="Your quotations"
       area="Customer portal"
       description="Review, comment on and confirm the quotations sent to you."

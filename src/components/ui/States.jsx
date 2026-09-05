@@ -1,8 +1,7 @@
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react";
 import { Button } from "./Button";
 
-// The three things a screen can be doing other than showing data. Every screen
-// uses these so "loading", "broken" and "nothing here yet" never look ad hoc.
+// Loading, error and empty states, shared so they never look ad hoc.
 
 export function Spinner({ label = "Loading" }) {
   return (
@@ -28,8 +27,7 @@ export function ErrorState({ message, onRetry }) {
   );
 }
 
-// Shown when the request worked but there is genuinely nothing yet. The hint
-// should tell someone how the first row gets here.
+// The hint should say how the first row gets here.
 export function EmptyState({ title, hint, action }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-6 py-14 text-center">

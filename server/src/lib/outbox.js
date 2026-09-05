@@ -1,11 +1,7 @@
-// Email outbox.
+// Records outbound mail until SMTP is wired up, so the flow stays complete and
+// inspectable without network access.
 //
-// SMTP is not wired up yet. Until then any mail the app wants to send is
-// recorded here and printed to the server log, so the workflow is complete and
-// inspectable with no network access.
-//
-// TODO: when SMTP settings are present in .env, send through nodemailer and
-// fall back to this outbox when they are blank.
+// TODO: send through nodemailer when SMTP settings are present in .env.
 
 const messages = [];
 

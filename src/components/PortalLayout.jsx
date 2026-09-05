@@ -5,12 +5,8 @@ import { DemoRail, ModeChip } from "./InstanceMarker";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
 
-// Customers get their own shell, not the internal workspace with the menu
-// hidden. It is a genuinely separate restricted view, so the portal never
-// renders the staff navigation at all.
-//
-// It also reads differently on purpose — narrower column, no toolbar — so a
-// customer never feels like they are looking at an internal system.
+// A separate shell rather than the workspace with the menu hidden: the staff
+// navigation is never rendered here.
 export function PortalLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
