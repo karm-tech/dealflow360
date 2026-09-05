@@ -7,6 +7,9 @@ import { getToken } from "../lib/api";
 // Keeps one socket open while somebody is signed in. An event only says that
 // something changed; the screen refetches so the server stays the one source of
 // the figures.
+//
+// This is what keeps data current. A socket event lands in the bell, never as a
+// toast: a toast confirms something you did yourself.
 export function RealtimeProvider({ children }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -16,9 +19,16 @@ export function RealtimeProvider({ children }) {
 
     const socket = io({ auth: { token: getToken() } });
 
-    socket.on("notification", () => {
+    socket.on("notification", (event) => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      queryClient.invalidateQueries({ queryKey: ["fulfilment"] });
+
+      // Anything open on the record the event is about is refreshed too.
+      if (event?.quotationId) {
+        queryClient.invalidateQueries({ queryKey: ["quotation", String(event.quotationId)] });
+      }
     });
 
     return () => socket.close();

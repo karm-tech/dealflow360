@@ -3,7 +3,7 @@ import { useAuth } from "./app/AuthProvider";
 import { RequireRole } from "./app/RequireRole";
 import { Layout } from "./components/Layout";
 import { PortalLayout } from "./components/PortalLayout";
-import { Spinner } from "./components/ui";
+import { Spinner, ToastProvider } from "./components/ui";
 import { LoginPage } from "./features/auth/LoginPage";
 import { DemoPage } from "./features/auth/DemoPage";
 import { AccessRequestsPage } from "./features/admin/AccessRequestsPage";
@@ -15,9 +15,9 @@ import {
   BackendPage,
   BillingPage,
   DashboardPage,
-  FulfilmentPage,
   PortalPage,
 } from "./features/placeholders/Pages";
+import { FulfilmentPage } from "./features/fulfilment/FulfilmentPage";
 import { QuotationsListPage } from "./features/quotations/QuotationsListPage";
 import { QuotationBuilderPage } from "./features/quotations/QuotationBuilderPage";
 import { PipelinePage } from "./features/quotations/PipelinePage";
@@ -38,6 +38,7 @@ function HomeRedirect() {
 
 export function App() {
   return (
+    <ToastProvider>
     <RealtimeProvider>
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
@@ -138,5 +139,6 @@ export function App() {
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </RealtimeProvider>
+    </ToastProvider>
   );
 }

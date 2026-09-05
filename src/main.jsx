@@ -7,9 +7,11 @@ import { AuthProvider } from "./app/AuthProvider";
 import "./index.css";
 
 // refetchOnWindowFocus off: data should not reload on every window switch.
+// Screens refresh themselves: live events invalidate what changed, and coming
+// back to the tab refetches in case an event was missed while it was hidden.
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { refetchOnWindowFocus: false, retry: 1 },
+    queries: { refetchOnWindowFocus: true, staleTime: 30_000, retry: 1 },
   },
 });
 
