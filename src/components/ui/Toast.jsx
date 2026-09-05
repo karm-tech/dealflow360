@@ -15,6 +15,7 @@ const DISMISS_AFTER = 4000;
 const VARIANTS = {
   success: { icon: CheckCircle2, rail: "bg-state-ok", tint: "text-state-ok" },
   error: { icon: AlertTriangle, rail: "bg-state-bad", tint: "text-state-bad" },
+  warn: { icon: AlertTriangle, rail: "bg-state-warn", tint: "text-state-warn" },
   info: { icon: Info, rail: "bg-ink-700", tint: "text-ink-700" },
 };
 
