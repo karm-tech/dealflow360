@@ -1,0 +1,54 @@
+{
+  "name": "dealflow360",
+  "version": "1.0.0",
+  "description": "Self-governing B2B sales operations platform — Odoo Hackathon 2026",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "node --watch server/src/index.js",
+    "dev:web": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "migrate:all": "node server/prisma/migrate-all.js",
+    "seed": "node server/prisma/seed.js",
+    "seed:live": "node server/prisma/seed.js --live",
+    "setup": "prisma generate && npm run migrate:all && npm run seed && npm run seed:live",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "schema": "server/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@react-pdf/renderer": "^4.1.6",
+    "@tanstack/react-query": "^5.59.16",
+    "axios": "^1.7.7",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.454.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.16",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.53.2",
+    "react-router-dom": "^6.27.0",
+    "recharts": "^2.13.0",
+    "socket.io": "^4.8.0",
+    "socket.io-client": "^4.8.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.1",
+    "postcss": "^8.4.47",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.14",
+    "vite": "^5.4.10"
+  }
+}
