@@ -114,7 +114,7 @@ authRouter.post("/signup", async (req, res) => {
     },
   });
 
-  queueEmail({
+  await queueEmail(db, {
     to: email,
     subject: "DealFlow360 access request received",
     body: `Hi ${name}, your access request has been sent to an admin for review.`,

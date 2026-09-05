@@ -55,8 +55,27 @@ export const USER_STATUS_TONES = {
   DISABLED: "neutral",
 };
 
+export const APPROVAL_STATUS_LABELS = {
+  WAITING: "Waiting its turn",
+  PENDING: "Waiting on you",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  RETURNED: "Returned",
+  SKIPPED: "Not needed",
+};
+
+export const APPROVAL_STATUS_TONES = {
+  WAITING: "neutral",
+  PENDING: "warn",
+  APPROVED: "ok",
+  REJECTED: "bad",
+  RETURNED: "warn",
+  SKIPPED: "neutral",
+};
+
 export const QUOTATION_STATUS_LABELS = {
   DRAFT: "Draft",
+  RETURNED: "Returned for revision",
   PENDING_APPROVAL: "Pending Approval",
   APPROVED: "Approved",
   SENT: "Sent",
@@ -69,12 +88,38 @@ export const QUOTATION_STATUS_LABELS = {
 // a status colour.
 export const QUOTATION_STATUS_TONES = {
   DRAFT: "neutral",
+  RETURNED: "warn",
   PENDING_APPROVAL: "warn",
   APPROVED: "ok",
   SENT: "info",
   UNDER_NEGOTIATION: "warn",
   CONFIRMED: "ok",
   CANCELLED: "bad",
+};
+
+// The path a deal normally takes, shown as a status bar on the quotation.
+// Cancelled and Under Negotiation sit off this path and are shown as a pill.
+export const QUOTATION_STAGES = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "SENT",
+  "CONFIRMED",
+];
+
+// Columns on the pipeline board.
+export const PIPELINE_STAGES = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "SENT",
+  "UNDER_NEGOTIATION",
+  "CONFIRMED",
+];
+
+export const BILLING_TYPE = {
+  ONE_TIME: "ONE_TIME",
+  RECURRING: "RECURRING",
 };
 
 export const BILLING_TYPE_LABELS = {

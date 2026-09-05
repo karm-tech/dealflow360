@@ -53,10 +53,13 @@ export const BILLING_TYPE = {
 };
 
 export const APPROVAL_STATUS = {
+  // A later step waits until the one before it is approved.
+  WAITING: "WAITING",
   PENDING: "PENDING",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   RETURNED: "RETURNED",
+  SKIPPED: "SKIPPED",
 };
 
 export const FULFILMENT_STATUS = {

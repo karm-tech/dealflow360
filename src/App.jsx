@@ -7,17 +7,22 @@ import { Spinner } from "./components/ui";
 import { LoginPage } from "./features/auth/LoginPage";
 import { DemoPage } from "./features/auth/DemoPage";
 import { AccessRequestsPage } from "./features/admin/AccessRequestsPage";
+import { OutboxPage } from "./features/admin/OutboxPage";
+import { ApprovalsPage } from "./features/approvals/ApprovalsPage";
+import { RealtimeProvider } from "./app/RealtimeProvider";
 import { NoAccessPage, NotFoundPage } from "./features/misc/NoAccessPage";
 import {
-  ApprovalsPage,
   BackendPage,
   BillingPage,
   DashboardPage,
   FulfilmentPage,
-  PipelinePage,
   PortalPage,
-  QuotationsPage,
 } from "./features/placeholders/Pages";
+import { QuotationsListPage } from "./features/quotations/QuotationsListPage";
+import { QuotationBuilderPage } from "./features/quotations/QuotationBuilderPage";
+import { PipelinePage } from "./features/quotations/PipelinePage";
+import { CustomerDetailPage } from "./features/catalogue/CustomerDetailPage";
+import { ProductDetailPage } from "./features/catalogue/ProductDetailPage";
 import { ROLES } from "./lib/constants";
 
 const STAFF = [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE];
@@ -33,6 +38,7 @@ function HomeRedirect() {
 
 export function App() {
   return (
+    <RealtimeProvider>
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
@@ -48,7 +54,10 @@ export function App() {
           </RequireRole>
         }
       >
-        <Route path="/quotations" element={<QuotationsPage />} />
+        <Route path="/quotations" element={<QuotationsListPage />} />
+        <Route path="/quotations/:id" element={<QuotationBuilderPage />} />
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
+        <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route
           path="/pipeline"
           element={
@@ -98,6 +107,14 @@ export function App() {
           }
         />
         <Route
+          path="/outbox"
+          element={
+            <RequireRole roles={[ROLES.ADMIN]}>
+              <OutboxPage />
+            </RequireRole>
+          }
+        />
+        <Route
           path="/backend"
           element={
             <RequireRole roles={[ROLES.ADMIN]}>
@@ -120,5 +137,6 @@ export function App() {
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    </RealtimeProvider>
   );
 }

@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, RefreshCw, Settings } from "lucide-react";
 import { useAuth } from "../app/AuthProvider";
 import { DemoRail, ModeChip } from "./InstanceMarker";
+import { NotificationBell } from "./NotificationBell";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
 import { ROLES, ROLE_LABELS } from "../lib/constants";
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { to: "/billing", label: "Billing", roles: [ROLES.ADMIN, ROLES.FINANCE] },
   { to: "/dashboard", label: "Deal Health", roles: [ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/access-requests", label: "Access Requests", roles: [ROLES.ADMIN] },
+  { to: "/outbox", label: "Outbox", roles: [ROLES.ADMIN] },
 ];
 
 // Active tab is underlined rather than filled; filled pills compete with the
@@ -85,6 +87,8 @@ export function Layout() {
               <p className="text-sm font-medium text-sand-900">{user.name}</p>
               <p className="text-xs text-sand-600">{ROLE_LABELS[user.role]}</p>
             </div>
+
+            <NotificationBell />
 
             <ModeChip />
 
