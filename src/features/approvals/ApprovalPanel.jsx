@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, CornerUpLeft, X } from "lucide-react";
-import { Button, Card, CardHeader, Field, StatusPill, Textarea } from "../../components/ui";
+import { Button, Card, CardHeader, Field, StatusPill, Textarea, useToast } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate } from "../../lib/format";
 import { useAuth } from "../../app/AuthProvider";
@@ -34,17 +34,25 @@ function StepRow({ step, isCurrent }) {
 export function ApprovalPanel({ quotation, canAct }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
 
+  const DECISION_SAID = {
+    approve: "Approved",
+    reject: "Rejected",
+    return: "Returned for revision",
+  };
+
   const decide = useMutation({
     mutationFn: (action) => api.post(`/approvals/${quotation.id}/${action}`, { reason }),
-    onSuccess: () => {
+    onSuccess: (_response, action) => {
       setError("");
       setReason("");
       queryClient.invalidateQueries({ queryKey: ["quotation", String(quotation.id)] });
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast(`${quotation.number} · ${DECISION_SAID[action] || "Done"}`);
     },
     onError: (mutationError) => setError(errorMessage(mutationError)),
   });

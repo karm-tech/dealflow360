@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
-import { Minus, Plus, Trash2 } from "lucide-react";
-import { Badge, Button, Select, Table, TBody, TD, TH, THead, TR } from "../../components/ui";
+import { Minus, Percent, Plus, Trash2 } from "lucide-react";
+import {
+  Badge,
+  Button,
+  Modal,
+  RecordPicker,
+  Select,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui";
 import { RecordLink } from "../../components/RecordLink";
+import { searchProducts } from "../../lib/pickers";
 import { formatMoney } from "../../lib/format";
 import { BILLING_TYPE, BILLING_TYPE_LABELS } from "../../lib/constants";
 
@@ -92,9 +105,6 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
               <RecordLink to={`/products/${line.productId}`}>{line.productName}</RecordLink>
               <p className="mt-0.5 text-xs text-sand-500">
                 {line.category}
-                {line.effectiveDiscountPct !== line.discountPct && (
-                  <> · {line.effectiveDiscountPct}% with the order discount</>
-                )}
                 {line.isProrated && <> · first period prorated</>}
               </p>
             </TD>
@@ -196,50 +206,200 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
   );
 }
 
-// Products are grouped by category so the ceiling that applies to each is
-// obvious while picking.
-export function AddLineControl({ products, isBusy, onAdd }) {
-  const [productId, setProductId] = useState("");
+// One row that adds a fully specified line: product, quantity, discount and
+// billing all chosen before anything is sent.
+export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
+  const [product, setProduct] = useState(null);
+  const [qty, setQty] = useState("1");
+  const [discountPct, setDiscountPct] = useState("0");
+  const [billingType, setBillingType] = useState("");
+  const [planId, setPlanId] = useState("");
 
-  const grouped = products.reduce((groups, product) => {
-    (groups[product.category] ||= []).push(product);
-    return groups;
-  }, {});
+  // Until a product is picked its own default decides how it is billed.
+  const effectiveBilling = billingType || product?.record.defaultBillingType || BILLING_TYPE.ONE_TIME;
+  const isRecurring = effectiveBilling === BILLING_TYPE.RECURRING;
+
+  function reset() {
+    setProduct(null);
+    setQty("1");
+    setDiscountPct("0");
+    setBillingType("");
+    setPlanId("");
+  }
 
   function add() {
-    if (!productId) return;
-    onAdd(Number(productId));
-    setProductId("");
+    if (!product) return;
+    onAdd({
+      productId: product.id,
+      qty: Math.max(1, Number(qty) || 1),
+      discountPct: Math.min(100, Math.max(0, Number(discountPct) || 0)),
+      billingType: effectiveBilling,
+      planId: isRecurring ? planId || product.record.defaultPlanId || "MONTHLY" : undefined,
+    });
+    reset();
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <Select
-        value={productId}
-        disabled={isBusy}
-        aria-label="Product to add"
-        onChange={(event) => setProductId(event.target.value)}
-        className="!w-auto min-w-[18rem]"
-      >
-        <option value="">Choose a product…</option>
-        {Object.entries(grouped).map(([category, items]) => (
-          <optgroup key={category} label={`${category} — up to ${items[0].categoryCeilingPct}% discount`}>
-            {items.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name} — {formatMoney(product.price)}
+    <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-sand-300 bg-sand-50 p-3">
+      <div className="min-w-[16rem] flex-1">
+        <label htmlFor="add-product" className="mb-1 block text-xs font-medium text-sand-600">
+          Product
+        </label>
+        <RecordPicker
+          id="add-product"
+          queryKey={`products-${tierId}`}
+          fetchOptions={searchProducts(tierId)}
+          value={product?.id}
+          selected={product}
+          onChange={setProduct}
+          noun="products"
+          placeholder="Search the catalogue…"
+          disabled={isBusy}
+          openTo={(id) => `/products/${id}`}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="add-qty" className="mb-1 block text-xs font-medium text-sand-600">
+          Qty
+        </label>
+        <input
+          id="add-qty"
+          type="number"
+          min={1}
+          value={qty}
+          disabled={isBusy}
+          onChange={(event) => setQty(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && add()}
+          className="figure w-20 rounded-lg border border-sand-300 bg-surface px-3 py-2 text-right text-base text-sand-900 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-500/20"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="add-discount" className="mb-1 block text-xs font-medium text-sand-600">
+          Disc %
+        </label>
+        <input
+          id="add-discount"
+          type="number"
+          min={0}
+          max={100}
+          value={discountPct}
+          disabled={isBusy}
+          onChange={(event) => setDiscountPct(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && add()}
+          className="figure w-20 rounded-lg border border-sand-300 bg-surface px-3 py-2 text-right text-base text-sand-900 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-500/20"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="add-billing" className="mb-1 block text-xs font-medium text-sand-600">
+          Billing
+        </label>
+        <Select
+          id="add-billing"
+          value={effectiveBilling}
+          disabled={isBusy}
+          onChange={(event) => setBillingType(event.target.value)}
+          className="!w-32"
+        >
+          {Object.entries(BILLING_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {isRecurring && (
+        <div>
+          <label htmlFor="add-plan" className="mb-1 block text-xs font-medium text-sand-600">
+            Period
+          </label>
+          <Select
+            id="add-plan"
+            value={planId || product?.record.defaultPlanId || "MONTHLY"}
+            disabled={isBusy}
+            onChange={(event) => setPlanId(event.target.value)}
+            className="!w-32"
+          >
+            {plans.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name}
               </option>
             ))}
-          </optgroup>
-        ))}
-      </Select>
+          </Select>
+        </div>
+      )}
 
-      <Button icon={Plus} disabled={isBusy || !productId} onClick={add}>
+      <Button icon={Plus} disabled={isBusy || !product} onClick={add}>
         Add line
       </Button>
-
-      {products.some((product) => product.isPromoted) && (
-        <Badge>Some products are promoted this quarter</Badge>
-      )}
     </div>
+  );
+}
+
+// Writes one discount onto every line. It replaces what is there, so the
+// current figures are named before anything changes.
+export function BulkDiscountControl({ lines, isBusy, onApply }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [value, setValue] = useState("");
+
+  const discountPct = Math.min(100, Math.max(0, Number(value) || 0));
+  const current = lines.map((line) => `${line.discountPct}%`).join(", ");
+
+  function apply() {
+    onApply(discountPct);
+    setIsOpen(false);
+    setValue("");
+  }
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={Percent}
+        disabled={isBusy || lines.length === 0}
+        onClick={() => setIsOpen(true)}
+      >
+        Set discount on all lines
+      </Button>
+
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Set discount on all lines"
+        description="Every line is set to this figure. There is one discount per line, so this replaces what is there."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={apply} disabled={value === ""}>
+              Set {discountPct}% on {lines.length} {lines.length === 1 ? "line" : "lines"}
+            </Button>
+          </>
+        }
+      >
+        <label htmlFor="bulk-discount" className="mb-1 block text-sm font-medium text-sand-700">
+          Discount %
+        </label>
+        <input
+          id="bulk-discount"
+          type="number"
+          min={0}
+          max={100}
+          autoFocus
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          className="figure w-32 rounded-lg border border-sand-300 bg-surface px-3 py-2 text-right text-base text-sand-900 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-500/20"
+        />
+
+        <p className="mt-3 text-sm text-sand-600">
+          This replaces the current discounts ({current}).
+        </p>
+      </Modal>
+    </>
   );
 }

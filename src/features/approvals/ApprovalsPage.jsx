@@ -62,7 +62,7 @@ export function ApprovalsPage() {
               const waitingDays = daysSince(row.waitingSince);
 
               return (
-                <TR key={row.id} onClick={() => navigate(`/quotations/${row.id}`)}>
+                <TR key={row.id} onClick={() => navigate(`/quotations/${row.id}?scope=approvals`)}>
                   <TD>{row.number}</TD>
                   <TD>
                     {row.customer.name} <span className="text-sand-500">· {row.customer.tier}</span>

@@ -12,6 +12,7 @@ import {
   Select,
   Spinner,
   StatusPill,
+  useToast,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate } from "../../lib/format";
@@ -123,6 +124,7 @@ function RequestCard({ request, assignableRoles, onApprove, onReject, isBusy }) 
 
 export function AccessRequestsPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [actionError, setActionError] = useState("");
 
   const requests = useQuery({
@@ -132,11 +134,12 @@ export function AccessRequestsPage() {
 
   const decide = useMutation({
     mutationFn: ({ id, action, body }) => api.post(`/admin/access-requests/${id}/${action}`, body),
-    onSuccess: () => {
+    onSuccess: (_response, variables) => {
       setActionError("");
       queryClient.invalidateQueries({ queryKey: ["access-requests"] });
       // An approved person becomes a listed demo account.
       queryClient.invalidateQueries({ queryKey: ["demo-accounts"] });
+      toast(variables.action === "approve" ? "Access approved" : "Access request declined");
     },
     onError: (error) => setActionError(errorMessage(error)),
   });
