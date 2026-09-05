@@ -21,7 +21,7 @@ export function RiskPreview({ risk, routing }) {
     return (
       <p className="flex items-center gap-2 rounded-lg border border-state-okBorder bg-state-okSoft px-3 py-2 text-base text-state-ok">
         <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-        Within every ceiling — confirming will approve this without review.
+        Within every ceiling — sending for approval will approve this without review.
       </p>
     );
   }

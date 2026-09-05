@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Minus, Percent, Plus, Trash2 } from "lucide-react";
+import { Minus, Percent, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import {
   Badge,
   Button,
@@ -20,7 +20,7 @@ import { BILLING_TYPE, BILLING_TYPE_LABELS } from "../../lib/constants";
 
 // Committed on blur or Enter rather than on every keystroke, so a half-typed
 // number never reaches the server.
-function NumberCell({ value, min = 0, max, suffix, disabled, onCommit }) {
+function NumberCell({ value, min = 0, max, suffix, disabled, ariaLabel, onCommit }) {
   const [draft, setDraft] = useState(String(value));
 
   useEffect(() => {
@@ -46,6 +46,7 @@ function NumberCell({ value, min = 0, max, suffix, disabled, onCommit }) {
         min={min}
         max={max}
         disabled={disabled}
+        aria-label={ariaLabel}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
@@ -105,8 +106,17 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
               <RecordLink to={`/products/${line.productId}`}>{line.productName}</RecordLink>
               <p className="mt-0.5 text-xs text-sand-500">
                 {line.category}
+                {line.isStockable && (
+                  <> · {line.onHand} on hand</>
+                )}
                 {line.isProrated && <> · first period prorated</>}
               </p>
+              {line.isShort && (
+                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-state-warn">
+                  <TriangleAlert size={12} />
+                  Not available — {line.qty} asked, {line.onHand} on hand. Check the quantity.
+                </p>
+              )}
             </TD>
 
             <TD>
@@ -164,6 +174,25 @@ export function LinesTable({ lines, plans, isEditable, isBusy, onUpdateLine, onR
                       </option>
                     ))}
                   </Select>
+                )}
+
+                {/* How far ahead of each period its renewal quotation is
+                    raised. Capped just under the period so only one renewal
+                    is ever open. */}
+                {line.billingType === BILLING_TYPE.RECURRING && (
+                  <span className="flex items-center gap-1 text-xs text-sand-500">
+                    <RefreshCw size={11} aria-hidden="true" />
+                    Renew
+                    <NumberCell
+                      value={line.renewalLeadDays ?? 0}
+                      min={1}
+                      max={line.renewalLeadDaysMax ?? undefined}
+                      suffix={`d ahead (max ${line.renewalLeadDaysMax ?? "—"})`}
+                      disabled={!isEditable || isBusy}
+                      ariaLabel={`Renewal notice in days for ${line.productName}`}
+                      onCommit={(renewalLeadDays) => onUpdateLine(line.id, { renewalLeadDays })}
+                    />
+                  </span>
                 )}
               </div>
             </TD>
@@ -227,11 +256,15 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
     setPlanId("");
   }
 
+  const asked = Math.max(1, Number(qty) || 1);
+  const onHand = product?.record.isStockable ? product.record.onHand : null;
+  const isShort = onHand !== null && asked > onHand;
+
   function add() {
     if (!product) return;
     onAdd({
       productId: product.id,
-      qty: Math.max(1, Number(qty) || 1),
+      qty: asked,
       discountPct: Math.min(100, Math.max(0, Number(discountPct) || 0)),
       billingType: effectiveBilling,
       planId: isRecurring ? planId || product.record.defaultPlanId || "MONTHLY" : undefined,
@@ -335,6 +368,14 @@ export function AddLineControl({ tierId, plans, isBusy, onAdd }) {
       <Button icon={Plus} disabled={isBusy || !product} onClick={add}>
         Add line
       </Button>
+
+      {isShort && (
+        <p className="basis-full mt-1 flex items-center gap-1.5 text-sm font-medium text-state-warn">
+          <TriangleAlert size={14} />
+          This product is not available — {asked} asked, {onHand} on hand. Check the quantity,
+          then add it if you still want to proceed.
+        </p>
+      )}
     </div>
   );
 }

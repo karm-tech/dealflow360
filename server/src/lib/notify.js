@@ -14,14 +14,28 @@ export const NOTIFICATION_TYPES = {
   QUOTATION_REJECTED: "QUOTATION_REJECTED",
   QUOTATION_RETURNED: "QUOTATION_RETURNED",
   QUOTATION_ACCEPTED: "QUOTATION_ACCEPTED",
+  QUOTATION_SENT: "QUOTATION_SENT",
+  // Raised by the customer rather than by anyone here: a request typed into the
+  // portal, and a quotation they turned down.
+  PORTAL_REQUEST: "PORTAL_REQUEST",
+  CUSTOMER_REJECTED: "CUSTOMER_REJECTED",
+  // Raised from a deal health alert: a nudge to the rep who owns the deal, and
+  // an escalation that puts it in front of their manager.
+  DEAL_NUDGED: "DEAL_NUDGED",
+  DEAL_ESCALATED: "DEAL_ESCALATED",
   BACKORDER_RAISED: "BACKORDER_RAISED",
   BACKORDER_CONSOLIDATED: "BACKORDER_CONSOLIDATED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
   PAYMENT_RECORDED: "PAYMENT_RECORDED",
   SUBSCRIPTION_CANCELLED: "SUBSCRIPTION_CANCELLED",
+  RENEWAL_DUE: "RENEWAL_DUE",
 };
 
-export async function notify(db, mode, { users, type, title, body, quotationId = null }) {
+export async function notify(
+  db,
+  mode,
+  { users, type, title, body, quotationId = null, attachment = null },
+) {
   const recipients = (users || []).filter(Boolean);
   if (recipients.length === 0) return;
 
@@ -30,7 +44,13 @@ export async function notify(db, mode, { users, type, title, body, quotationId =
   });
 
   for (const user of recipients) {
-    await queueEmail(db, { to: user.email, subject: title, body: body || title, quotationId });
+    await queueEmail(db, {
+      to: user.email,
+      subject: title,
+      body: body || title,
+      quotationId,
+      attachment,
+    });
     emitToUser(mode, user.id, "notification", { type, title, body, quotationId });
   }
 }

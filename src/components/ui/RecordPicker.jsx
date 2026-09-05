@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, ChevronDown, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Spinner } from "./States";
 
 // Picks one related record by typing. The list comes back from the server a
 // page at a time, so a catalogue of any size stays usable.
@@ -199,7 +198,9 @@ export function RecordPicker({
             style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width }}
             className="z-[60] max-h-72 overflow-y-auto rounded-lg border border-sand-200 bg-surface py-1 shadow-raised"
           >
-            {options.isLoading && <Spinner label={`Searching ${noun}`} />}
+            {options.isLoading && rows.length === 0 && (
+              <p className="px-3 py-2 text-sm text-sand-500">Searching {noun}…</p>
+            )}
 
             {!options.isLoading && rows.length === 0 && (
               <p className="px-3 py-3 text-sm text-sand-600">

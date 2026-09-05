@@ -1,9 +1,12 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { INTERNAL_ROLES, QUOTATION_STATUS } from "../lib/constants.js";
+import { BILLING_TYPE, INTERNAL_ROLES, QUOTATION_STATUS, ROLES } from "../lib/constants.js";
 import { resolveUnitPrice } from "../lib/pricing.js";
+import { onHandQty } from "../lib/stock.js";
 import { quotationSummary, QUOTATION_INCLUDE } from "../lib/quotationView.js";
 import { billingCounts } from "../lib/billingService.js";
+import { logEvent } from "../lib/activity.js";
 
 export const catalogueRouter = Router();
 
@@ -45,7 +48,12 @@ catalogueRouter.get("/products", async (req, res) => {
         ? { OR: [{ name: { contains: search } }, { sku: { contains: search } }] }
         : {}),
     },
-    include: { category: true, priceListItems: { include: { priceList: true } }, defaultPlan: true },
+    include: {
+      category: true,
+      stocks: true,
+      priceListItems: { include: { priceList: true } },
+      defaultPlan: true,
+    },
     orderBy: [{ categoryId: "asc" }, { name: "asc" }],
     ...(req.query.limit ? { take: searchLimit(req.query.limit) } : {}),
   });
@@ -71,6 +79,7 @@ catalogueRouter.get("/products", async (req, res) => {
         defaultBillingType: product.defaultBillingType,
         defaultPlanId: product.defaultPlanId,
         isStockable: product.isStockable,
+        onHand: onHandQty(product),
         isPromoted: product.isPromoted,
       };
     }),
@@ -212,4 +221,167 @@ catalogueRouter.get("/customers/:id", async (req, res) => {
 catalogueRouter.get("/plans", async (req, res) => {
   const plans = await req.db.recurringPlan.findMany({ orderBy: { name: "asc" } });
   res.json({ plans: plans.map((plan) => ({ id: plan.id, name: plan.name })) });
+});
+
+// The ceilings, for pickers. Editing them is admin work and lives under
+// /config; reading them is needed anywhere a customer's tier is chosen.
+catalogueRouter.get("/tiers", async (req, res) => {
+  const tiers = await req.db.tier.findMany({ orderBy: { sequence: "asc" } });
+
+  res.json({
+    tiers: tiers.map((tier) => ({
+      id: tier.id,
+      name: tier.name,
+      maxDiscountPct: tier.maxDiscountPct,
+    })),
+  });
+});
+
+catalogueRouter.get("/categories", async (req, res) => {
+  const categories = await req.db.category.findMany({ orderBy: { name: "asc" } });
+
+  res.json({
+    categories: categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      discountCeilingPct: category.discountCeilingPct,
+    })),
+  });
+});
+
+// --- create a product -------------------------------------------------------
+
+// isStockable is the goods / service split: goods are counted in a warehouse
+// and can run short, a service never is. How it is charged is a separate
+// question, answered by defaultBillingType.
+const productSchema = z.object({
+  name: z.string().trim().min(2, "Give the product a name"),
+  sku: z.string().trim().min(2, "Give the product an SKU"),
+  categoryId: z.number().int().positive("Choose a category"),
+  unit: z.string().trim().min(1).default("unit"),
+  salesPrice: z.number().nonnegative("Sales price cannot be negative"),
+  cost: z.number().nonnegative("Cost cannot be negative"),
+  taxRatePct: z.number().min(0).max(100).default(18),
+  isStockable: z.boolean().default(true),
+  isReturnable: z.boolean().default(false),
+  defaultBillingType: z.enum([BILLING_TYPE.ONE_TIME, BILLING_TYPE.RECURRING]).default(BILLING_TYPE.ONE_TIME),
+  defaultPlanId: z.string().nullable().optional(),
+  warrantyMonths: z.number().int().min(0).nullable().optional(),
+});
+
+// Master data carries cost and margin, so only an admin may add to it.
+catalogueRouter.post("/products", requireRole(ROLES.ADMIN), async (req, res) => {
+  const parsed = productSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0].message });
+  }
+
+  const input = parsed.data;
+
+  const category = await req.db.category.findUnique({ where: { id: input.categoryId } });
+  if (!category) return res.status(400).json({ error: "That category no longer exists" });
+
+  const clash = await req.db.product.findUnique({ where: { sku: input.sku } });
+  if (clash) return res.status(409).json({ error: `SKU ${input.sku} is already in use` });
+
+  // A one-time product has no billing period to keep.
+  const planId = input.defaultBillingType === BILLING_TYPE.RECURRING ? input.defaultPlanId || "MONTHLY" : null;
+
+  if (planId) {
+    const plan = await req.db.recurringPlan.findUnique({ where: { id: planId } });
+    if (!plan) return res.status(400).json({ error: "Choose a billing period" });
+  }
+
+  const product = await req.db.product.create({
+    data: {
+      name: input.name,
+      sku: input.sku,
+      categoryId: input.categoryId,
+      unit: input.unit,
+      salesPrice: input.salesPrice,
+      cost: input.cost,
+      taxRatePct: input.taxRatePct,
+      isStockable: input.isStockable,
+      isReturnable: input.isReturnable,
+      defaultBillingType: input.defaultBillingType,
+      defaultPlanId: planId,
+      warrantyMonths: input.warrantyMonths ?? null,
+    },
+  });
+
+  res.status(201).json({ id: product.id, name: product.name, sku: product.sku });
+});
+
+// --- create and edit a customer ---------------------------------------------
+
+const customerSchema = z.object({
+  name: z.string().trim().min(2, "Give the customer a name"),
+  email: z.string().trim().email("Enter a valid email address"),
+  phone: z.string().trim().max(40).optional().nullable(),
+  city: z.string().trim().max(80).optional().nullable(),
+  state: z.string().trim().max(80).optional().nullable(),
+  tierId: z.string().min(1, "Choose a tier"),
+  isActive: z.boolean().default(true),
+});
+
+function nullBlanks(values) {
+  const data = { ...values };
+  for (const key of ["phone", "city", "state"]) {
+    if (data[key] !== undefined && (data[key] === null || data[key].trim() === "")) data[key] = null;
+  }
+  return data;
+}
+
+// A tier is the customer's discount ceiling, so adding a customer is setting
+// policy about them. Admin and sales manager only.
+const CUSTOMER_EDIT_ROLES = [ROLES.ADMIN, ROLES.SALES_MANAGER];
+
+catalogueRouter.post("/customers", requireRole(...CUSTOMER_EDIT_ROLES), async (req, res) => {
+  const parsed = customerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const clash = await req.db.customer.findUnique({ where: { email: parsed.data.email } });
+  if (clash) {
+    return res.status(409).json({ error: `${parsed.data.email} is already on another customer` });
+  }
+
+  const tier = await req.db.tier.findUnique({ where: { id: parsed.data.tierId } });
+  if (!tier) return res.status(400).json({ error: "That tier no longer exists" });
+
+  const customer = await req.db.customer.create({ data: nullBlanks(parsed.data) });
+
+  res.status(201).json({ id: customer.id, name: customer.name });
+});
+
+catalogueRouter.patch("/customers/:id", requireRole(...CUSTOMER_EDIT_ROLES), async (req, res) => {
+  const parsed = customerSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const id = Number(req.params.id);
+  const existing = await req.db.customer.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: "That customer no longer exists" });
+
+  if (parsed.data.email && parsed.data.email !== existing.email) {
+    const clash = await req.db.customer.findUnique({ where: { email: parsed.data.email } });
+    if (clash) {
+      return res.status(409).json({ error: `${parsed.data.email} is already on another customer` });
+    }
+  }
+
+  if (parsed.data.tierId && parsed.data.tierId !== existing.tierId) {
+    const tier = await req.db.tier.findUnique({ where: { id: parsed.data.tierId } });
+    if (!tier) return res.status(400).json({ error: "That tier no longer exists" });
+
+    // A ceiling change is policy about this customer, so it is on the record
+    // rather than only in the row's new value.
+    await logEvent(req.db, {
+      userId: req.user.id,
+      action: "CUSTOMER_TIER_CHANGED",
+      detail: `${existing.name} moved from ${existing.tierId} to ${tier.name} (ceiling now ${tier.maxDiscountPct}%)`,
+    });
+  }
+
+  const customer = await req.db.customer.update({ where: { id }, data: nullBlanks(parsed.data) });
+
+  res.json({ id: customer.id });
 });

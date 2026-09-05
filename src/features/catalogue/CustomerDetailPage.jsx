@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Receipt, Repeat, ShoppingCart } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
@@ -7,6 +7,7 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  ListPager,
   SmartButton,
   SmartButtons,
   Spinner,
@@ -19,6 +20,7 @@ import {
   TR,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
+import { pageFromSearch, paginate } from "../../lib/list";
 import { formatDate, formatMoney } from "../../lib/format";
 import {
   OPEN_QUOTATION_STATUSES,
@@ -38,6 +40,8 @@ function Detail({ label, children }) {
 export function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const page = pageFromSearch(params);
 
   const customer = useQuery({
     queryKey: ["customer", id],
@@ -50,6 +54,7 @@ export function CustomerDetailPage() {
   }
 
   const { customer: record, quotations, counts } = customer.data;
+  const windowed = paginate(quotations, page);
 
   return (
     <div className="animate-fadeUp">
@@ -104,12 +109,13 @@ export function CustomerDetailPage() {
 
       <h2 className="mb-3 text-xl font-semibold text-sand-900">Quotations</h2>
 
-      {quotations.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title="No quotations yet"
           hint="Quotations raised for this customer will be listed here."
         />
       ) : (
+        <>
         <Table>
           <THead>
             <TR>
@@ -120,7 +126,7 @@ export function CustomerDetailPage() {
             </TR>
           </THead>
           <TBody>
-            {quotations.map((row) => (
+            {windowed.rows.map((row) => (
               <TR key={row.id} onClick={() => navigate(`/quotations/${row.id}`)}>
                 <TD className="font-medium text-ink-700">{row.number}</TD>
                 <TD figure align="right">
@@ -138,6 +144,16 @@ export function CustomerDetailPage() {
             ))}
           </TBody>
         </Table>
+        <ListPager
+          {...windowed}
+          onPage={(next) => {
+            const nextParams = new URLSearchParams(params);
+            if (next <= 1) nextParams.delete("page");
+            else nextParams.set("page", String(next));
+            setParams(nextParams, { replace: true });
+          }}
+        />
+        </>
       )}
     </div>
   );

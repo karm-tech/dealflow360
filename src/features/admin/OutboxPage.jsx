@@ -1,8 +1,10 @@
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "../../components/PageHeader";
 import {
   EmptyState,
   ErrorState,
+  ListPager,
   Spinner,
   StatusPill,
   Table,
@@ -13,9 +15,13 @@ import {
   TR,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
+import { pageFromSearch, paginate } from "../../lib/list";
 import { formatDate } from "../../lib/format";
 
 export function OutboxPage() {
+  const [params, setParams] = useSearchParams();
+  const page = pageFromSearch(params);
+
   const outbox = useQuery({
     queryKey: ["outbox"],
     queryFn: async () => (await api.get("/notifications/outbox")).data,
@@ -27,6 +33,7 @@ export function OutboxPage() {
   }
 
   const { messages, smtpConfigured } = outbox.data;
+  const windowed = paginate(messages, page);
 
   return (
     <div className="animate-fadeUp">
@@ -39,12 +46,13 @@ export function OutboxPage() {
         }
       />
 
-      {messages.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title="No mail yet"
           hint="Approvals, decisions and access requests all send a message from here."
         />
       ) : (
+        <>
         <Table>
           <THead>
             <TR>
@@ -56,7 +64,7 @@ export function OutboxPage() {
             </TR>
           </THead>
           <TBody>
-            {messages.map((message) => (
+            {windowed.rows.map((message) => (
               <TR key={message.id}>
                 <TD>{message.to}</TD>
                 <TD>{message.subject}</TD>
@@ -73,6 +81,16 @@ export function OutboxPage() {
             ))}
           </TBody>
         </Table>
+        <ListPager
+          {...windowed}
+          onPage={(next) => {
+            const nextParams = new URLSearchParams(params);
+            if (next <= 1) nextParams.delete("page");
+            else nextParams.set("page", String(next));
+            setParams(nextParams, { replace: true });
+          }}
+        />
+        </>
       )}
     </div>
   );

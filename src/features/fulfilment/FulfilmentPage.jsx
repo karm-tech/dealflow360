@@ -7,6 +7,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  ListPager,
   Spinner,
   StatusPill,
   Table,
@@ -18,6 +19,7 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { pageFromSearch, paginate } from "../../lib/list";
 import { FULFILMENT_STATUS_LABELS, FULFILMENT_STATUS_TONES, ROLES } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
 import { StockReceiptModal } from "./StockReceiptModal";
@@ -30,6 +32,7 @@ export function FulfilmentPage() {
   // Set by the Shipments button on a quotation.
   const [params, setParams] = useSearchParams();
   const quotationId = params.get("quotationId") || "";
+  const page = pageFromSearch(params);
 
   const fulfilment = useQuery({
     queryKey: ["fulfilment-list", quotationId],
@@ -44,6 +47,7 @@ export function FulfilmentPage() {
 
   const { parcels, consolidatableIds } = fulfilment.data;
   const ready = new Set(consolidatableIds);
+  const windowed = paginate(parcels, page);
 
   return (
     <div className="animate-fadeUp">
@@ -70,12 +74,13 @@ export function FulfilmentPage() {
         </div>
       )}
 
-      {parcels.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title="Nothing waiting to ship"
           hint="A shipment appears here once a quotation is approved and its stock is allocated."
         />
       ) : (
+        <>
         <Table>
           <THead>
             <TR>
@@ -90,7 +95,7 @@ export function FulfilmentPage() {
             </TR>
           </THead>
           <TBody>
-            {parcels.map((parcel) => (
+            {windowed.rows.map((parcel) => (
               <TR key={parcel.id} onClick={() => navigate(`/fulfilment/${parcel.id}`)}>
                 <TD>{parcel.reference}</TD>
                 <TD>{parcel.number}</TD>
@@ -124,6 +129,16 @@ export function FulfilmentPage() {
             ))}
           </TBody>
         </Table>
+        <ListPager
+          {...windowed}
+          onPage={(next) => {
+            const nextParams = new URLSearchParams(params);
+            if (next <= 1) nextParams.delete("page");
+            else nextParams.set("page", String(next));
+            setParams(nextParams, { replace: true });
+          }}
+        />
+        </>
       )}
 
       <StockReceiptModal

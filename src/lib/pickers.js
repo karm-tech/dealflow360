@@ -27,7 +27,9 @@ export function productOption(product) {
   return {
     id: product.id,
     label: product.name,
-    hint: `${product.category} · up to ${product.categoryCeilingPct}% discount`,
+    hint: product.isStockable
+      ? `${product.category} · ${product.onHand ?? 0} on hand`
+      : `${product.category} · up to ${product.categoryCeilingPct}% discount`,
     meta: formatMoney(product.price),
     record: product,
   };

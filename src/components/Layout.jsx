@@ -10,12 +10,12 @@ import { ROLES } from "../lib/constants";
 
 // Each entry lists the roles allowed to see it, matching the route guards.
 const NAV_ITEMS = [
+  { to: "/dashboard", label: "Deal Health", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/quotations", label: "Quotations", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/pipeline", label: "Pipeline", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER] },
   { to: "/approvals", label: "Approvals", roles: [ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.FINANCE] },
   { to: "/fulfilment", label: "Fulfilment", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE] },
   { to: "/billing", label: "Billing", roles: [ROLES.ADMIN, ROLES.SALES_REP, ROLES.FINANCE] },
-  { to: "/dashboard", label: "Deal Health", roles: [ROLES.ADMIN, ROLES.SALES_MANAGER, ROLES.FINANCE] },
 ];
 
 // Active tab is underlined rather than filled; filled pills compete with the

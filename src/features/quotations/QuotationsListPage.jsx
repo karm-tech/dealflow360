@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { Download, Plus, Repeat } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import {
   Badge,
@@ -9,9 +9,10 @@ import {
   EmptyState,
   ErrorState,
   Field,
-  Input,
+  ListPager,
   Modal,
   RecordPicker,
+  SearchField,
   Select,
   Spinner,
   StatusPill,
@@ -21,10 +22,13 @@ import {
   TH,
   THead,
   TR,
+  useToast,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { searchCustomers } from "../../lib/pickers";
 import { formatDate, formatMoney } from "../../lib/format";
+import { pageFromSearch, paginate } from "../../lib/list";
+import { downloadExport } from "../../lib/exports";
 import {
   PIPELINE_STAGES,
   QUOTATION_STATUS_LABELS,
@@ -103,6 +107,7 @@ function NewQuotationDialog({ open, onClose }) {
 
 export function QuotationsListPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [isCreating, setIsCreating] = useState(false);
 
   // Filters live in the address bar so a link reproduces the same list, and so
@@ -111,6 +116,7 @@ export function QuotationsListPage() {
   const status = params.get("status") || "";
   const search = params.get("search") || "";
   const sort = params.get("sort") || "newest";
+  const page = pageFromSearch(params);
   // Set by the related-record buttons on a customer or product.
   const customerId = params.get("customerId") || "";
   const productId = params.get("productId") || "";
@@ -119,6 +125,9 @@ export function QuotationsListPage() {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+    // A new filter starts at the first page; the page control itself is the
+    // exception.
+    if (key !== "page") next.delete("page");
     setParams(next, { replace: true });
   }
 
@@ -133,6 +142,7 @@ export function QuotationsListPage() {
   const quotations = useQuery({
     queryKey: ["quotations", status, search, customerId, productId, sort],
     queryFn: async () => (await api.get("/quotations", { params: listQuery })).data.quotations,
+    placeholderData: (previous) => previous,
   });
 
   // Naming the record filter matters: a list narrowed by something the user
@@ -155,7 +165,8 @@ export function QuotationsListPage() {
     return <ErrorState message={errorMessage(quotations.error)} onRetry={quotations.refetch} />;
   }
 
-  const rows = quotations.data;
+  const windowed = paginate(quotations.data, page);
+  const rows = windowed.rows;
   // Carried onto the record so its pager walks this list rather than all of it.
   const listParams = params.toString();
 
@@ -165,9 +176,20 @@ export function QuotationsListPage() {
         title="Quotations"
         subtitle="Every deal, from first draft to confirmed order."
         actions={
-          <Button icon={Plus} onClick={() => setIsCreating(true)}>
-            New quotation
-          </Button>
+          <>
+            {/* Exports what is on screen, not the whole table, so the file and
+                the list agree. */}
+            <Button
+              variant="secondary"
+              icon={Download}
+              onClick={() => downloadExport("quotations", { status, search }, toast)}
+            >
+              Export CSV
+            </Button>
+            <Button icon={Plus} onClick={() => setIsCreating(true)}>
+              New quotation
+            </Button>
+          </>
         }
       />
 
@@ -184,19 +206,12 @@ export function QuotationsListPage() {
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Field label="Search" htmlFor="search">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sand-400"
-              aria-hidden="true"
-            />
-            <Input
-              id="search"
-              value={search}
-              placeholder="Number or customer"
-              onChange={(event) => setParam("search", event.target.value)}
-              className="!w-64 !pl-9"
-            />
-          </div>
+          <SearchField
+            id="search"
+            value={search}
+            placeholder="Number or customer"
+            onChange={(next) => setParam("search", next)}
+          />
         </Field>
 
         <Field label="Stage" htmlFor="status">
@@ -231,7 +246,7 @@ export function QuotationsListPage() {
         </Field>
       </div>
 
-      {rows.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title="No quotations match"
           hint="Change the filters, or start a new quotation for a customer."
@@ -242,6 +257,7 @@ export function QuotationsListPage() {
           }
         />
       ) : (
+        <>
         <Table>
           <THead>
             <TR>
@@ -262,7 +278,17 @@ export function QuotationsListPage() {
                   navigate(`/quotations/${row.id}${listParams ? `?${listParams}` : ""}`)
                 }
               >
-                <TD className="font-medium text-ink-700">{row.number}</TD>
+                <TD className="font-medium text-ink-700">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {row.number}
+                    {row.isRenewal && (
+                      <Badge className="gap-1 font-normal">
+                        <Repeat className="h-3 w-3" aria-hidden="true" />
+                        Recurring
+                      </Badge>
+                    )}
+                  </span>
+                </TD>
                 <TD>
                   <span className="flex flex-wrap items-center gap-2">
                     {row.customer.name}
@@ -288,6 +314,8 @@ export function QuotationsListPage() {
             ))}
           </TBody>
         </Table>
+        <ListPager {...windowed} onPage={(next) => setParam("page", String(next))} />
+        </>
       )}
 
       <NewQuotationDialog open={isCreating} onClose={() => setIsCreating(false)} />

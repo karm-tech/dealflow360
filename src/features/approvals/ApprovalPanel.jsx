@@ -4,9 +4,11 @@ import { Check, CornerUpLeft, X } from "lucide-react";
 import { Button, Card, CardHeader, Field, StatusPill, Textarea, useToast } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate } from "../../lib/format";
+import { shortStockLines } from "../../lib/stock";
 import { useAuth } from "../../app/AuthProvider";
 import { APPROVAL_STATUS_LABELS, APPROVAL_STATUS_TONES, ROLE_LABELS, ROLES } from "../../lib/constants";
 import { RiskSummary, RiskBreakdown } from "./RiskBreakdown";
+import { StockProceedModal } from "../quotations/StockProceedModal";
 
 // A step waits on a role rather than a person, so the marker shows the role and
 // the decision shows who took it.
@@ -37,6 +39,7 @@ export function ApprovalPanel({ quotation, canAct }) {
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
 
   const DECISION_SAID = {
     approve: "Approved",
@@ -60,6 +63,15 @@ export function ApprovalPanel({ quotation, canAct }) {
   const steps = quotation.approval?.steps || [];
   const isOwnQuotation = quotation.rep?.id === user.id;
   const showActions = canAct && steps.some((step) => step.status === "PENDING");
+  const shortLines = shortStockLines(quotation.lines);
+
+  function requestDecision(action) {
+    if (shortLines.length) {
+      setPendingAction(action);
+      return;
+    }
+    decide.mutate(action);
+  }
 
   return (
     <Card>
@@ -112,14 +124,14 @@ export function ApprovalPanel({ quotation, canAct }) {
             </Field>
 
             <div className="flex flex-wrap gap-2">
-              <Button icon={Check} isLoading={decide.isPending} onClick={() => decide.mutate("approve")}>
+              <Button icon={Check} isLoading={decide.isPending} onClick={() => requestDecision("approve")}>
                 Approve
               </Button>
               <Button
                 variant="secondary"
                 icon={CornerUpLeft}
                 disabled={decide.isPending}
-                onClick={() => decide.mutate("return")}
+                onClick={() => requestDecision("return")}
               >
                 Return for revision
               </Button>
@@ -127,7 +139,7 @@ export function ApprovalPanel({ quotation, canAct }) {
                 variant="danger"
                 icon={X}
                 disabled={decide.isPending}
-                onClick={() => decide.mutate("reject")}
+                onClick={() => requestDecision("reject")}
               >
                 Reject
               </Button>
@@ -135,6 +147,17 @@ export function ApprovalPanel({ quotation, canAct }) {
           </div>
         )}
       </div>
+
+      <StockProceedModal
+        open={Boolean(pendingAction)}
+        lines={shortLines}
+        actionLabel="Yes, proceed"
+        onClose={() => setPendingAction(null)}
+        onProceed={() => {
+          decide.mutate(pendingAction);
+          setPendingAction(null);
+        }}
+      />
     </Card>
   );
 }

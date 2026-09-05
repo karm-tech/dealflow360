@@ -1,9 +1,10 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "../../components/PageHeader";
 import {
   EmptyState,
   ErrorState,
+  ListPager,
   Spinner,
   StatusPill,
   Table,
@@ -14,11 +15,14 @@ import {
   TR,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
+import { pageFromSearch, paginate } from "../../lib/list";
 import { daysSince, formatMoney } from "../../lib/format";
 import { ROLE_LABELS } from "../../lib/constants";
 
 export function ApprovalsPage() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const page = pageFromSearch(params);
 
   const approvals = useQuery({
     queryKey: ["approvals"],
@@ -30,7 +34,8 @@ export function ApprovalsPage() {
     return <ErrorState message={errorMessage(approvals.error)} onRetry={approvals.refetch} />;
   }
 
-  const rows = approvals.data;
+  const windowed = paginate(approvals.data, page);
+  const rows = windowed.rows;
 
   return (
     <div className="animate-fadeUp">
@@ -39,12 +44,13 @@ export function ApprovalsPage() {
         subtitle="Quotations routed to you because their discounts sit past a ceiling."
       />
 
-      {rows.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title="Nothing waiting on you"
-          hint="A quotation appears here when a rep confirms one whose discounts need your sign-off."
+          hint="A quotation appears here when a rep sends one whose discounts need your sign-off."
         />
       ) : (
+        <>
         <Table>
           <THead>
             <TR>
@@ -87,6 +93,16 @@ export function ApprovalsPage() {
             })}
           </TBody>
         </Table>
+        <ListPager
+          {...windowed}
+          onPage={(next) => {
+            const nextParams = new URLSearchParams(params);
+            if (next <= 1) nextParams.delete("page");
+            else nextParams.set("page", String(next));
+            setParams(nextParams, { replace: true });
+          }}
+        />
+        </>
       )}
     </div>
   );

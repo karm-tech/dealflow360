@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Lock, Receipt, Repeat, ShieldCheck, Trash2, Truck } from "lucide-react";
+import {
+  Check,
+  Copy,
+  FileText,
+  Lock,
+  Receipt,
+  Repeat,
+  Send,
+  ShieldCheck,
+  Trash2,
+  Truck,
+} from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import { RecordLink } from "../../components/RecordLink";
 import { RecordNav } from "../../components/RecordNav";
@@ -23,12 +34,16 @@ import { api, errorMessage } from "../../lib/api";
 import { customerOption, searchCustomers } from "../../lib/pickers";
 import { formatDate } from "../../lib/format";
 import { quotationScope } from "../../lib/recordScopes";
+import { shortStockLines } from "../../lib/stock";
+import { openPdf } from "../../lib/exports";
 import { StatusBar } from "./StatusBar";
 import { TotalsPanel } from "./TotalsPanel";
 import { UpsellPanel } from "./UpsellPanel";
 import { HistoryTimeline } from "./HistoryTimeline";
+import { CustomerMessages } from "./CustomerMessages";
 import { AddLineControl, BulkDiscountControl, LinesTable } from "./LinesTable";
 import { RiskPreview } from "./RiskPreview";
+import { StockProceedModal } from "./StockProceedModal";
 import { ApprovalPanel, canApprove } from "../approvals/ApprovalPanel";
 import { FulfilmentSummary } from "../fulfilment/FulfilmentSummary";
 import { BillingSummary } from "../billing/BillingSummary";
@@ -58,6 +73,7 @@ export function QuotationBuilderPage() {
   const toast = useToast();
   const [actionError, setActionError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingChange, setPendingChange] = useState(null);
 
   const detail = useQuery({
     queryKey: ["quotation", id],
@@ -121,6 +137,23 @@ export function QuotationBuilderPage() {
   // Recording that the customer agreed; the portal route ends in the same place.
   const canAccept = ["APPROVED", "SENT"].includes(quotation.status);
   const hasApproval = (quotation.approval?.steps || []).length > 0;
+  const shortLines = shortStockLines(quotation.lines);
+  const sendLabel = quotation.status === "RETURNED" ? "Re-send for approval" : "Send for approval";
+  // Until this runs the customer has seen nothing, so it is what makes the
+  // approve and reject buttons appear in their portal.
+  const canSendToCustomer = ["APPROVED", "SENT"].includes(quotation.status);
+  const sendToCustomerLabel =
+    quotation.status === "SENT" ? "Send to customer again" : "Send to customer";
+
+  // Anything that moves the quotation to a new status confirms the shortage
+  // first. Editing a line only warns on the line itself.
+  function requestChange(args, actionLabel) {
+    if (shortLines.length > 0) {
+      setPendingChange({ args, actionLabel });
+      return;
+    }
+    change.mutate(args);
+  }
 
   return (
     <div className="animate-fadeUp">
@@ -143,6 +176,12 @@ export function QuotationBuilderPage() {
             <Badge>
               {quotation.customer.tier} · ceiling {quotation.customer.maxDiscountPct}%
             </Badge>
+            {quotation.renewal && (
+              <Badge className="gap-1">
+                <Repeat className="h-3 w-3" aria-hidden="true" />
+                Recurring · renews {quotation.renewal.reference}
+              </Badge>
+            )}
             <span className="text-sand-600">
               · created {formatDate(quotation.createdAt)}
               {quotation.rep && <> · {quotation.rep.name}</>}
@@ -151,6 +190,13 @@ export function QuotationBuilderPage() {
         }
         actions={
           <>
+            <Button
+              variant="secondary"
+              icon={FileText}
+              onClick={() => openPdf(`/documents/quotations/${quotation.id}.pdf`, toast)}
+            >
+              PDF
+            </Button>
             <Button variant="secondary" icon={Copy} disabled={isBusy} onClick={() => duplicate.mutate()}>
               Duplicate
             </Button>
@@ -165,16 +211,26 @@ export function QuotationBuilderPage() {
             {canEdit && (
               <Button
                 disabled={isBusy || quotation.lines.length === 0}
-                onClick={() => change.mutate({ method: "post", path: "/confirm" })}
+                onClick={() => requestChange({ method: "post", path: "/confirm" }, sendLabel)}
               >
-                Confirm
+                {sendLabel}
+              </Button>
+            )}
+            {canSendToCustomer && (
+              <Button
+                variant="secondary"
+                icon={Send}
+                disabled={isBusy}
+                onClick={() => requestChange({ method: "post", path: "/send" }, sendToCustomerLabel)}
+              >
+                {sendToCustomerLabel}
               </Button>
             )}
             {canAccept && (
               <Button
                 icon={Check}
                 disabled={isBusy}
-                onClick={() => change.mutate({ method: "post", path: "/accept" })}
+                onClick={() => requestChange({ method: "post", path: "/accept" }, "Mark as accepted")}
               >
                 Mark as accepted
               </Button>
@@ -184,6 +240,14 @@ export function QuotationBuilderPage() {
         aside={
           quotation.counts && (
             <SmartButtons>
+              {quotation.renewal && (
+                <SmartButton
+                  count={1}
+                  label="Recurring plan"
+                  icon={Repeat}
+                  to={`/billing/subscriptions/${quotation.renewal.subscriptionId}`}
+                />
+              )}
               <SmartButton
                 count={quotation.counts.shipments}
                 label="Shipments"
@@ -371,6 +435,8 @@ export function QuotationBuilderPage() {
             </div>
           )}
 
+          <CustomerMessages messages={quotation.messages} />
+
           <HistoryTimeline history={quotation.history} />
         </div>
 
@@ -421,6 +487,17 @@ export function QuotationBuilderPage() {
           {quotation.lines.length === 1 ? "line" : "lines"}
         </p>
       </Modal>
+
+      <StockProceedModal
+        open={Boolean(pendingChange)}
+        lines={shortLines}
+        actionLabel={pendingChange ? `Yes, ${pendingChange.actionLabel.toLowerCase()}` : "Yes, proceed"}
+        onClose={() => setPendingChange(null)}
+        onProceed={() => {
+          change.mutate(pendingChange.args);
+          setPendingChange(null);
+        }}
+      />
     </div>
   );
 }

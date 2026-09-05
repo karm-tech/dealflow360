@@ -10,11 +10,21 @@ import {
   previewRouting,
 } from "../lib/quotationRules.js";
 import { QUOTATION_INCLUDE, quotationDetail, quotationSummary } from "../lib/quotationView.js";
+import { nextQuotationNumber } from "../lib/quotationNumber.js";
 import { resolveUnitPrice } from "../lib/pricing.js";
+import {
+  checkRenewalLeadDays,
+  defaultRenewalLeadDays,
+  maxRenewalLeadDays,
+} from "../lib/renewal.js";
 import { suggestUpsells, addDismissed } from "../lib/upsell.js";
 import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
 import { executeFulfilment, suggestFulfilment } from "../lib/fulfilmentService.js";
 import { billConfirmedOrder, billingCounts } from "../lib/billingService.js";
+import { acceptQuotation } from "../lib/acceptance.js";
+import { queueEmail } from "../lib/outbox.js";
+import { quotationPdf, quotationPdfName } from "../lib/pdf/quotationPdf.js";
+import { companySettings } from "../lib/company.js";
 
 export const quotationsRouter = Router();
 
@@ -58,6 +68,8 @@ const lineSchema = z.object({
   billingType: z.enum([BILLING_TYPE.ONE_TIME, BILLING_TYPE.RECURRING]).optional(),
   planId: z.string().nullable().optional(),
   startDate: z.string().nullable().optional(),
+  // Checked against the plan's period once that is known, not here.
+  renewalLeadDays: z.number().int().min(1, "Renewal notice must be at least 1 day").optional(),
 });
 
 const lineUpdateSchema = lineSchema.partial().omit({ productId: true });
@@ -107,20 +119,6 @@ async function loadHistory(db, quotationId) {
     orderBy: { createdAt: "desc" },
     take: 50,
   });
-}
-
-// Numbers run in one sequence and never change: a quotation keeps its number
-// when it becomes an order. Takes the highest number in use rather than the
-// newest row, which need not be the highest.
-async function nextNumber(db) {
-  const rows = await db.quotation.findMany({ select: { number: true } });
-
-  const highest = rows.reduce((max, row) => {
-    const value = Number(row.number.replace(/\D/g, ""));
-    return Number.isFinite(value) && value > max ? value : max;
-  }, 1000);
-
-  return `DF-Q-${highest + 1}`;
 }
 
 // Price for this customer, captured onto the line at the moment it is added.
@@ -273,7 +271,7 @@ quotationsRouter.post("/", async (req, res) => {
 
   const quotation = await req.db.quotation.create({
     data: {
-      number: await nextNumber(req.db),
+      number: await nextQuotationNumber(req.db),
       customerId: customer.id,
       repId: req.user.id,
       status: QUOTATION_STATUS.DRAFT,
@@ -390,7 +388,7 @@ quotationsRouter.post("/:id/duplicate", async (req, res) => {
 
   const copy = await req.db.quotation.create({
     data: {
-      number: await nextNumber(req.db),
+      number: await nextQuotationNumber(req.db),
       customerId: source.customerId,
       repId: req.user.id,
       status: QUOTATION_STATUS.DRAFT,
@@ -405,6 +403,7 @@ quotationsRouter.post("/:id/duplicate", async (req, res) => {
           billingType: line.billingType,
           planId: line.planId,
           startDate: line.startDate,
+          renewalLeadDays: line.renewalLeadDays,
         })),
       },
     },
@@ -450,6 +449,18 @@ quotationsRouter.post("/:id/lines", async (req, res) => {
       : null,
   };
 
+  // A recurring line carries its own renewal notice; the plan decides what a
+  // sensible default is and how long the notice may be.
+  let renewalLeadDays = null;
+  if (isRecurring) {
+    const plan = await req.db.recurringPlan.findUnique({ where: { id: candidate.planId } });
+    if (!plan) return res.status(400).json({ error: "Choose a billing period" });
+
+    renewalLeadDays = parsed.data.renewalLeadDays ?? defaultRenewalLeadDays(plan);
+    const problem = checkRenewalLeadDays(renewalLeadDays, plan);
+    if (problem) return res.status(400).json({ error: problem });
+  }
+
   // Adding what is already on the order raises its quantity instead of
   // repeating the row.
   const existing = matchingLine(quotation.lines, candidate);
@@ -472,7 +483,7 @@ quotationsRouter.post("/:id/lines", async (req, res) => {
   }
 
   await req.db.quotationLine.create({
-    data: { quotationId: quotation.id, unitPrice, qty, ...candidate },
+    data: { quotationId: quotation.id, unitPrice, qty, ...candidate, renewalLeadDays },
   });
 
   await logActivity(req.db, {
@@ -565,6 +576,41 @@ quotationsRouter.patch("/:id/lines/:lineId", async (req, res) => {
     data.startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : null;
   }
 
+  // The notice has to fit whichever plan the line ends up on, so it is settled
+  // after the other changes: a yearly line moved to monthly cannot keep 30
+  // days' notice, and a line moved off recurring has nothing to renew.
+  const nextBillingType = data.billingType || line.billingType;
+  const nextPlanId = data.planId !== undefined ? data.planId : line.planId;
+
+  if (nextBillingType !== BILLING_TYPE.RECURRING) {
+    if (line.renewalLeadDays !== null) data.renewalLeadDays = null;
+  } else {
+    const plan = await req.db.recurringPlan.findUnique({ where: { id: nextPlanId } });
+    if (!plan) return res.status(400).json({ error: "Choose a billing period" });
+
+    if (parsed.data.renewalLeadDays !== undefined) {
+      const problem = checkRenewalLeadDays(parsed.data.renewalLeadDays, plan);
+      if (problem) return res.status(400).json({ error: problem });
+    }
+
+    const asked = parsed.data.renewalLeadDays ?? line.renewalLeadDays;
+    const resolved =
+      asked === null || asked === undefined
+        ? defaultRenewalLeadDays(plan)
+        : Math.min(asked, maxRenewalLeadDays(plan));
+
+    if (resolved !== line.renewalLeadDays) {
+      data.renewalLeadDays = resolved;
+      changes.push(
+        describeChange(
+          `${line.product.name} renewal notice`,
+          line.renewalLeadDays === null ? "none" : `${line.renewalLeadDays} days`,
+          `${resolved} days`,
+        ),
+      );
+    }
+  }
+
   await req.db.quotationLine.update({ where: { id: line.id }, data });
 
   if (changes.length > 0) {
@@ -607,7 +653,7 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
   if (!guardEditable(quotation, res)) return;
 
   if (quotation.lines.length === 0) {
-    return res.status(400).json({ error: "Add at least one product before confirming" });
+    return res.status(400).json({ error: "Add at least one product before sending for approval" });
   }
 
   const plan = await resolveConfirmTarget(req.db, quotation);
@@ -648,51 +694,98 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
   await respondWithDetail(req, res, quotation.id);
 });
 
-// Records that the customer agreed away from the portal. The portal route ends
-// in the same place.
-quotationsRouter.post("/:id/accept", async (req, res) => {
+// --- send to the customer ---------------------------------------------------
+
+// Puts an approved quotation in front of the customer and waits. Until this
+// runs the customer has seen nothing, so it is the step that makes the portal's
+// approve and reject buttons appear.
+quotationsRouter.post("/:id/send", async (req, res) => {
   const quotation = await loadQuotation(req.db, Number(req.params.id));
   if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
 
-  const acceptable = [QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.SENT];
-  if (!acceptable.includes(quotation.status)) {
-    return res.status(409).json({ error: "Only an approved quotation can be marked as accepted" });
+  // Re-sending an already sent quotation is allowed: a customer loses the mail.
+  const sendable = [QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.SENT];
+  if (!sendable.includes(quotation.status)) {
+    return res.status(409).json({ error: "Only an approved quotation can be sent to the customer" });
   }
 
-  await req.db.quotation.update({
-    where: { id: quotation.id },
-    data: { status: QUOTATION_STATUS.CONFIRMED, confirmedAt: new Date() },
-  });
+  const isResend = quotation.status === QUOTATION_STATUS.SENT;
+
+  if (!isResend) {
+    await req.db.quotation.update({
+      where: { id: quotation.id },
+      data: { status: QUOTATION_STATUS.SENT },
+    });
+  }
 
   await logActivity(req.db, {
     quotationId: quotation.id,
     userId: req.user.id,
-    action: "QUOTATION_ACCEPTED",
-    detail: `${describeChange("Status", quotation.status, QUOTATION_STATUS.CONFIRMED)} · customer accepted`,
+    action: "QUOTATION_SENT",
+    detail: isResend
+      ? `Sent to ${quotation.customer.name} again`
+      : `${describeChange("Status", quotation.status, QUOTATION_STATUS.SENT)} · sent to ${quotation.customer.name}`,
   });
 
-  // Agreeing the order is what takes the stock. A quotation that never gets
-  // this far holds none.
-  const confirmed = { ...quotation, status: QUOTATION_STATUS.CONFIRMED };
-  const fulfilment = await executeFulfilment(req.db, req.dbMode, confirmed, req.user.id);
-  if (fulfilment.error) return res.status(409).json({ error: fulfilment.error });
-
-  // Agreeing the order also raises its opening invoice and opens a
-  // subscription for each recurring line.
-  await billConfirmedOrder(req.db, req.dbMode, confirmed, req.user.id);
-
-  const approvers = await req.db.user.findMany({
-    where: { id: { in: quotation.approvalSteps.map((step) => step.actorId).filter(Boolean) } },
+  const portalUsers = await req.db.user.findMany({
+    where: { customerId: quotation.customerId, role: ROLES.CUSTOMER, status: "ACTIVE" },
     select: { id: true, email: true, name: true },
   });
 
-  await notify(req.db, req.dbMode, {
-    users: [quotation.rep, ...approvers].filter((user) => user && user.id !== req.user.id),
-    type: NOTIFICATION_TYPES.QUOTATION_ACCEPTED,
-    title: `${quotation.number} accepted by ${quotation.customer.name}`,
-    body: "The quotation is now a confirmed order.",
-    quotationId: quotation.id,
+  const body = `${quotation.customer.name} — quotation ${quotation.number} is ready for you. The full quotation is attached. Sign in to the portal to read it there and either approve it or send it back with your reasons.`;
+
+  // Rendered at the moment of sending, from the record as it stands now, so the
+  // attachment can never be an older version of the deal.
+  const { company, currency } = await companySettings(req.db);
+  const attachment = {
+    filename: quotationPdfName(quotation),
+    content: await quotationPdf(quotation, company, currency),
+  };
+
+  if (portalUsers.length > 0) {
+    await notify(req.db, req.dbMode, {
+      users: portalUsers,
+      type: NOTIFICATION_TYPES.QUOTATION_SENT,
+      title: `Quotation ${quotation.number} is ready for you`,
+      body,
+      quotationId: quotation.id,
+      attachment,
+    });
+  } else {
+    // Nobody there has registered yet, so it goes to the address on the
+    // customer record and invites them to.
+    await queueEmail(req.db, {
+      to: quotation.customer.email,
+      subject: `Quotation ${quotation.number} is ready for you`,
+      body: `${body}\n\nYou do not have a portal account yet — register with this email address to follow it online.`,
+      quotationId: quotation.id,
+      attachment,
+    });
+  }
+
+  await respondWithDetail(req, res, quotation.id, {
+    message: portalUsers.length > 0
+      ? `Sent to ${quotation.customer.name}`
+      : `Emailed ${quotation.customer.email} — nobody there has a portal account yet`,
   });
+});
+
+// --- accept -----------------------------------------------------------------
+
+// Records that the customer agreed away from the portal. The portal's own
+// approve button runs the same cascade.
+quotationsRouter.post("/:id/accept", async (req, res) => {
+  const quotation = await loadQuotation(req.db, Number(req.params.id));
+  if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
+
+  const result = await acceptQuotation(
+    req.db,
+    req.dbMode,
+    quotation,
+    req.user.id,
+    `recorded by ${req.user.name || "a colleague"}`,
+  );
+  if (result.error) return res.status(409).json({ error: result.error });
 
   await respondWithDetail(req, res, quotation.id);
 });
