@@ -575,6 +575,18 @@ async function createQuotation({ number, customer, rep, status, lines, activityA
     },
   });
 
+  if (["SENT", "UNDER_NEGOTIATION", "CONFIRMED", "REJECTED"].includes(status)) {
+    await db.activityLog.create({
+      data: {
+        quotationId: quotation.id,
+        userId: rep.id,
+        action: "QUOTATION_SENT",
+        detail: `Sent to ${customer.name}`,
+        createdAt: activityAt,
+      },
+    });
+  }
+
   return quotation;
 }
 

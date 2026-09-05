@@ -4,7 +4,20 @@ import { QUOTATION_STATUS } from "./constants.js";
 import { scoreQuotation } from "./risk.js";
 import { buildChain, findBand, rolesForBand, stepRowsFor } from "./approvals.js";
 
-const EDITABLE_STATUSES = [QUOTATION_STATUS.DRAFT, "RETURNED"];
+const EDITABLE_STATUSES = [QUOTATION_STATUS.DRAFT, "RETURNED", QUOTATION_STATUS.UNDER_NEGOTIATION];
+
+// A closed deal has no one to write to. Drafts are still being priced.
+const MESSAGEABLE_STATUSES = [
+  QUOTATION_STATUS.PENDING_APPROVAL,
+  QUOTATION_STATUS.APPROVED,
+  QUOTATION_STATUS.SENT,
+  QUOTATION_STATUS.UNDER_NEGOTIATION,
+  QUOTATION_STATUS.CONFIRMED,
+];
+
+export function canMessage(status) {
+  return MESSAGEABLE_STATUSES.includes(status);
+}
 
 export function isEditable(status) {
   return EDITABLE_STATUSES.includes(status);
@@ -14,10 +27,22 @@ export function editBlockedMessage(status) {
   if (status === QUOTATION_STATUS.PENDING_APPROVAL) {
     return "This quotation is with an approver and cannot be changed.";
   }
+  if (status === QUOTATION_STATUS.SENT) {
+    return "This quotation is with the customer. Wait for their decision, or they can request changes.";
+  }
   if (status === QUOTATION_STATUS.CANCELLED) {
     return "This quotation was cancelled.";
   }
   return "This quotation has been agreed and cannot be changed.";
+}
+
+// A revision that stays inside ceilings goes back to the portal, not to
+// APPROVED — the customer is already waiting on this number.
+export function statusAfterConfirm(planStatus, currentStatus) {
+  if (currentStatus === QUOTATION_STATUS.UNDER_NEGOTIATION && planStatus === QUOTATION_STATUS.APPROVED) {
+    return QUOTATION_STATUS.SENT;
+  }
+  return planStatus;
 }
 
 // Same routing as confirm, so the preview cannot disagree with the decision.

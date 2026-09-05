@@ -15,9 +15,11 @@ export const NOTIFICATION_TYPES = {
   QUOTATION_RETURNED: "QUOTATION_RETURNED",
   QUOTATION_ACCEPTED: "QUOTATION_ACCEPTED",
   QUOTATION_SENT: "QUOTATION_SENT",
+  QUOTATION_MESSAGE: "QUOTATION_MESSAGE",
   // Raised by the customer rather than by anyone here: a request typed into the
   // portal, and a quotation they turned down.
   PORTAL_REQUEST: "PORTAL_REQUEST",
+  CUSTOMER_NEGOTIATED: "CUSTOMER_NEGOTIATED",
   CUSTOMER_REJECTED: "CUSTOMER_REJECTED",
   // Raised from a deal health alert: a nudge to the rep who owns the deal, and
   // an escalation that puts it in front of their manager.

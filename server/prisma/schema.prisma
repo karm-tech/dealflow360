@@ -520,8 +520,7 @@ model PortalMessage {
   authorId        Int
   author          User   @relation(fields: [authorId], references: [id])
   text            String
-  // A counter-offer. When accepted this re-scores the quote, which can send it
-  // back through approval on its own.
+  // What they asked for. The rep applies it; sending the revision re-scores.
   counterDiscountPct Float?
   createdAt          DateTime @default(now())
 }

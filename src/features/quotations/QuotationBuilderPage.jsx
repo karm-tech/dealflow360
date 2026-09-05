@@ -40,7 +40,7 @@ import { StatusBar } from "./StatusBar";
 import { TotalsPanel } from "./TotalsPanel";
 import { UpsellPanel } from "./UpsellPanel";
 import { HistoryTimeline } from "./HistoryTimeline";
-import { CustomerMessages } from "./CustomerMessages";
+import { QuotationThread } from "./QuotationThread";
 import { AddLineControl, BulkDiscountControl, LinesTable } from "./LinesTable";
 import { RiskPreview } from "./RiskPreview";
 import { StockProceedModal } from "./StockProceedModal";
@@ -138,12 +138,20 @@ export function QuotationBuilderPage() {
   const canAccept = ["APPROVED", "SENT"].includes(quotation.status);
   const hasApproval = (quotation.approval?.steps || []).length > 0;
   const shortLines = shortStockLines(quotation.lines);
-  const sendLabel = quotation.status === "RETURNED" ? "Re-send for approval" : "Send for approval";
+  const isRevising = quotation.status === "UNDER_NEGOTIATION";
+  const sendLabel = isRevising
+    ? "Send revised quote"
+    : quotation.status === "RETURNED"
+      ? "Re-send for approval"
+      : "Send for approval";
   // Until this runs the customer has seen nothing, so it is what makes the
   // approve and reject buttons appear in their portal.
   const canSendToCustomer = ["APPROVED", "SENT"].includes(quotation.status);
   const sendToCustomerLabel =
     quotation.status === "SENT" ? "Send to customer again" : "Send to customer";
+  const latestAsk = [...(quotation.messages || [])].reverse().find(
+    (message) => message.counterDiscountPct != null || message.lineName,
+  );
 
   // Anything that moves the quotation to a new status confirms the shortage
   // first. Editing a line only warns on the line itself.
@@ -280,6 +288,17 @@ export function QuotationBuilderPage() {
       <div className="mb-5">
         <StatusBar status={quotation.status} />
       </div>
+
+      {isRevising && (
+        <p className="mb-4 rounded-lg border border-state-warnBorder bg-state-warnSoft px-3 py-2 text-sm text-sand-800">
+          The customer asked for changes
+          {latestAsk?.counterDiscountPct != null && (
+            <> — they want <span className="font-semibold">{latestAsk.counterDiscountPct}% off</span></>
+          )}
+          {latestAsk?.lineName && <> on {latestAsk.lineName}</>}. Apply what you will on the lines,
+          then send the revised quote.
+        </p>
+      )}
 
       {!canEdit && (
         <p className="mb-4 flex items-center gap-2 rounded-lg border border-sand-200 bg-sand-50 px-3 py-2 text-sm text-sand-700">
@@ -441,7 +460,12 @@ export function QuotationBuilderPage() {
             </div>
           )}
 
-          <CustomerMessages messages={quotation.messages} />
+          <QuotationThread
+            messages={quotation.messages}
+            canReply={quotation.canMessage}
+            isBusy={isBusy}
+            onSend={(text) => change.mutate({ method: "post", path: "/messages", body: { text } })}
+          />
 
           <HistoryTimeline history={quotation.history} />
         </div>

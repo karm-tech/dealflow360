@@ -23,6 +23,8 @@ export function RealtimeProvider({ children }) {
       // Anything open on the record the event is about is refreshed too.
       if (event?.quotationId) {
         queryClient.invalidateQueries({ queryKey: ["quotation", String(event.quotationId)] });
+        queryClient.invalidateQueries({ queryKey: ["portal-quotation", String(event.quotationId)] });
+        queryClient.invalidateQueries({ queryKey: ["portal-quotations"] });
       }
     });
 

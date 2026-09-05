@@ -8,7 +8,9 @@ import {
   editBlockedMessage,
   resolveConfirmTarget,
   previewRouting,
+  statusAfterConfirm,
 } from "../lib/quotationRules.js";
+import { deliverToCustomer, deliveryMessage } from "../lib/quotationDelivery.js";
 import { QUOTATION_INCLUDE, quotationDetail, quotationSummary } from "../lib/quotationView.js";
 import { nextQuotationNumber } from "../lib/quotationNumber.js";
 import { priceForTier } from "../lib/pricing.js";
@@ -23,9 +25,7 @@ import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
 import { executeFulfilment, suggestFulfilment } from "../lib/fulfilmentService.js";
 import { billConfirmedOrder, billingCounts } from "../lib/billingService.js";
 import { acceptQuotation } from "../lib/acceptance.js";
-import { queueEmail } from "../lib/outbox.js";
-import { quotationPdf, quotationPdfName } from "../lib/pdf/quotationPdf.js";
-import { companySettings } from "../lib/company.js";
+import { postQuotationMessage } from "../lib/quotationThread.js";
 
 export const quotationsRouter = Router();
 
@@ -681,7 +681,9 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
   const plan = await resolveConfirmTarget(req.db, quotation);
   if (plan.error) return res.status(409).json({ error: plan.error });
 
-  const needsApproval = plan.status === QUOTATION_STATUS.PENDING_APPROVAL;
+  const nextStatus = statusAfterConfirm(plan.status, quotation.status);
+  const needsApproval = nextStatus === QUOTATION_STATUS.PENDING_APPROVAL;
+  const sendRevision = nextStatus === QUOTATION_STATUS.SENT;
 
   // A resubmitted quotation is scored again from scratch, so earlier steps are
   // cleared rather than added to.
@@ -690,7 +692,7 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
   await req.db.quotation.update({
     where: { id: quotation.id },
     data: {
-      status: plan.status,
+      status: nextStatus,
       riskScore: plan.risk.score,
       requiresFinance: plan.requiresFinance,
       approvalPendingSince: needsApproval ? new Date() : null,
@@ -702,15 +704,24 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
     quotationId: quotation.id,
     userId: req.user.id,
     action: "QUOTATION_CONFIRMED",
-    detail: `${describeChange("Status", quotation.status, plan.status)} · risk ${plan.risk.score} points`,
+    detail: `${describeChange("Status", quotation.status, nextStatus)} · risk ${plan.risk.score} points`,
   });
 
   if (needsApproval) {
     await notifyStepPending(req, quotation, plan.steps[0], plan.risk.score);
-  } else {
-    // Inside its ceilings, so it is approved on the spot and the split is
-    // worked out straight away.
-    await suggestFulfilment(req.db, quotation.id);
+    await respondWithDetail(req, res, quotation.id);
+    return;
+  }
+
+  // Inside its ceilings, so it is approved on the spot and the split is
+  // worked out straight away.
+  await suggestFulfilment(req.db, quotation.id);
+
+  if (sendRevision) {
+    const fresh = await loadQuotation(req.db, quotation.id);
+    const result = await deliverToCustomer(req.db, req.dbMode, fresh, req.user.id, { isResend: true });
+    await respondWithDetail(req, res, quotation.id, { message: deliveryMessage(result, quotation.customer) });
+    return;
   }
 
   await respondWithDetail(req, res, quotation.id);
@@ -740,55 +751,11 @@ quotationsRouter.post("/:id/send", async (req, res) => {
     });
   }
 
-  await logActivity(req.db, {
-    quotationId: quotation.id,
-    userId: req.user.id,
-    action: "QUOTATION_SENT",
-    detail: isResend
-      ? `Sent to ${quotation.customer.name} again`
-      : `${describeChange("Status", quotation.status, QUOTATION_STATUS.SENT)} · sent to ${quotation.customer.name}`,
-  });
-
-  const portalUsers = await req.db.user.findMany({
-    where: { customerId: quotation.customerId, role: ROLES.CUSTOMER, status: "ACTIVE" },
-    select: { id: true, email: true, name: true },
-  });
-
-  const body = `${quotation.customer.name} — quotation ${quotation.number} is ready for you. The full quotation is attached. Sign in to the portal to read it there and either approve it or send it back with your reasons.`;
-
-  // Rendered at the moment of sending, from the record as it stands now, so the
-  // attachment can never be an older version of the deal.
-  const { company, currency } = await companySettings(req.db);
-  const attachment = {
-    filename: quotationPdfName(quotation),
-    content: await quotationPdf(quotation, company, currency),
-  };
-
-  if (portalUsers.length > 0) {
-    await notify(req.db, req.dbMode, {
-      users: portalUsers,
-      type: NOTIFICATION_TYPES.QUOTATION_SENT,
-      title: `Quotation ${quotation.number} is ready for you`,
-      body,
-      quotationId: quotation.id,
-      attachment,
-    });
-  } else {
-    // Nobody there has registered yet, so it goes to the address on the
-    // customer record and invites them to.
-    await queueEmail(req.db, {
-      to: quotation.customer.email,
-      subject: `Quotation ${quotation.number} is ready for you`,
-      body: `${body}\n\nYou do not have a portal account yet — register with this email address to follow it online.`,
-      quotationId: quotation.id,
-      attachment,
-    });
-  }
+  const fresh = await loadQuotation(req.db, quotation.id);
+  const result = await deliverToCustomer(req.db, req.dbMode, fresh, req.user.id, { isResend });
 
   await respondWithDetail(req, res, quotation.id, {
-    message: portalUsers.length > 0
-      ? `Sent to ${quotation.customer.name}`
-      : `Emailed ${quotation.customer.email} — nobody there has a portal account yet`,
+    message: deliveryMessage(result, quotation.customer),
   });
 });
 
@@ -825,4 +792,25 @@ quotationsRouter.post("/:id/suggestions/:productId/dismiss", async (req, res) =>
   });
 
   await respondWithDetail(req, res, quotation.id);
+});
+
+const messageSchema = z.object({
+  text: z.string().trim().min(1, "Write a message first.").max(2000),
+});
+
+quotationsRouter.post("/:id/messages", async (req, res) => {
+  const parsed = messageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: firstIssue(parsed) });
+
+  const quotation = await loadQuotation(req.db, Number(req.params.id));
+  if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
+
+  const result = await postQuotationMessage(req.db, req.dbMode, {
+    quotation,
+    authorId: req.user.id,
+    text: parsed.data.text,
+  });
+  if (result.error) return res.status(409).json({ error: result.error });
+
+  await respondWithDetail(req, res, quotation.id, { message: "Message sent" });
 });
