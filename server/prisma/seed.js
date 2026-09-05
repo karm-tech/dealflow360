@@ -40,6 +40,8 @@ function daysFromNow(days) {
 
 // Delete children before parents so no foreign key is left dangling.
 async function clearEverything() {
+  await db.notification.deleteMany();
+  await db.emailMessage.deleteMany();
   await db.creditNote.deleteMany();
   await db.payment.deleteMany();
   await db.invoiceLine.deleteMany();
@@ -170,6 +172,46 @@ async function createProducts(categories) {
       defaultPlanId: "MONTHLY",
     },
     {
+      name: "Wireless Mouse",
+      sku: "HW-MOUSE",
+      categoryId: categories.hardware.id,
+      salesPrice: 1500,
+      cost: 900,
+      isStockable: true,
+      defaultBillingType: BILLING_TYPE.ONE_TIME,
+    },
+    // Promoted but unrelated to laptops. The suggestion panel must still leave
+    // it out of a laptop deal.
+    {
+      name: "Smartphone X2",
+      sku: "HW-PHONE",
+      categoryId: categories.hardware.id,
+      salesPrice: 45000,
+      cost: 33000,
+      isStockable: true,
+      defaultBillingType: BILLING_TYPE.ONE_TIME,
+      isPromoted: true,
+      warrantyMonths: 12,
+    },
+    {
+      name: "Phone Cover",
+      sku: "HW-CASE",
+      categoryId: categories.hardware.id,
+      salesPrice: 800,
+      cost: 400,
+      isStockable: true,
+      defaultBillingType: BILLING_TYPE.ONE_TIME,
+    },
+    {
+      name: "Screen Protector",
+      sku: "HW-SCRN",
+      categoryId: categories.hardware.id,
+      salesPrice: 500,
+      cost: 250,
+      isStockable: true,
+      defaultBillingType: BILLING_TYPE.ONE_TIME,
+    },
+    {
       name: "Onsite Setup Service",
       sku: "SV-SETUP",
       categoryId: categories.service.id,
@@ -292,6 +334,11 @@ async function createWarehouses(products) {
       { warehouseId: east.id, productId: products["HW-DOCK-01"].id, qty: 15, reorderLevel: 10 },
       { warehouseId: east.id, productId: products["HW-SW-24"].id, qty: 3, reorderLevel: 5 },
       { warehouseId: east.id, productId: products["HW-PRN-RENT"].id, qty: 4, reorderLevel: 2 },
+
+      { warehouseId: main.id, productId: products["HW-MOUSE"].id, qty: 120, reorderLevel: 20 },
+      { warehouseId: main.id, productId: products["HW-PHONE"].id, qty: 25, reorderLevel: 5 },
+      { warehouseId: main.id, productId: products["HW-CASE"].id, qty: 90, reorderLevel: 20 },
+      { warehouseId: main.id, productId: products["HW-SCRN"].id, qty: 140, reorderLevel: 30 },
     ],
   });
 
@@ -305,14 +352,14 @@ async function createApprovalRules() {
       {
         name: "Manager approval",
         minOveragePoints: 0.01,
-        maxOveragePoints: 10,
+        maxOveragePoints: 5,
         requiresManager: true,
         requiresFinance: false,
         sequence: 1,
       },
       {
         name: "Manager then Finance",
-        minOveragePoints: 10,
+        minOveragePoints: 5,
         maxOveragePoints: null,
         requiresManager: true,
         requiresFinance: true,
@@ -330,6 +377,8 @@ async function createUpsellRules(products) {
       { productId: products["HW-LAP-14"].id, suggestedProductId: products["SB-AMC"].id, weight: 1.5 },
       { productId: products["HW-SW-24"].id, suggestedProductId: products["SV-SETUP"].id, weight: 2 },
       { productId: products["SB-CLOUD"].id, suggestedProductId: products["SB-BACKUP"].id, weight: 1.5 },
+      { productId: products["HW-PHONE"].id, suggestedProductId: products["HW-CASE"].id, weight: 3 },
+      { productId: products["HW-PHONE"].id, suggestedProductId: products["HW-SCRN"].id, weight: 2 },
     ],
   });
 }
@@ -360,6 +409,7 @@ async function createUsers(customers) {
     { name: "Karan Mehta", email: "rep@dealflow360.test", role: ROLES.SALES_REP },
     { name: "Sneha Rao", email: "rep2@dealflow360.test", role: ROLES.SALES_REP },
     { name: "Manager User", email: "manager@dealflow360.test", role: ROLES.SALES_MANAGER },
+    { name: "Meera Iyer", email: "manager2@dealflow360.test", role: ROLES.SALES_MANAGER },
     { name: "Finance User", email: "finance@dealflow360.test", role: ROLES.FINANCE },
   ];
 
@@ -521,11 +571,11 @@ async function createQuotations(customers, users, products) {
     extra: {
       approvalPendingSince: daysAgo(7),
       promisedDeliveryDate: daysFromNow(6),
-      riskScore: 6,
+      riskScore: 2,
     },
     lines: [
       line(products["HW-LAP-14"], 5, 60000, 14, BILLING_TYPE.ONE_TIME),
-      line(products["SV-SETUP"], 1, 40000, 16, BILLING_TYPE.ONE_TIME),
+      line(products["SV-SETUP"], 1, 40000, 12, BILLING_TYPE.ONE_TIME),
     ],
   });
 
@@ -559,7 +609,46 @@ async function createQuotations(customers, users, products) {
     });
   }
 
-  // 6) One of Sneha's, so the pipeline is not all from a single rep.
+  // 6) Past orders the suggestion panel learns from. Laptops mostly sell with a
+  //    mouse, phones mostly with a cover, and the two groups never overlap — so
+  //    a phone cannot be suggested alongside a laptop however it is promoted.
+  //    Kept on Sneha so Karan's discount average stays where the anomaly
+  //    detector needs it.
+  const basket = [
+    { sku: ["HW-LAP-14", "HW-MOUSE", "HW-DOCK-01"] },
+    { sku: ["HW-LAP-14", "HW-MOUSE", "HW-DOCK-01"] },
+    { sku: ["HW-LAP-14", "HW-MOUSE"] },
+    { sku: ["HW-LAP-14", "HW-MOUSE", "SV-WARR-2Y"] },
+    { sku: ["HW-LAP-14", "HW-MOUSE", "SV-WARR-2Y"] },
+    { sku: ["HW-LAP-14", "HW-DOCK-01"] },
+    { sku: ["HW-LAP-14", "HW-MOUSE"] },
+    { sku: ["HW-LAP-14", "HW-SW-24"] },
+    { sku: ["HW-PHONE", "HW-CASE", "HW-SCRN"] },
+    { sku: ["HW-PHONE", "HW-CASE"] },
+    { sku: ["HW-PHONE", "HW-CASE", "HW-SCRN"] },
+    { sku: ["HW-PHONE", "HW-CASE"] },
+    { sku: ["HW-PHONE", "HW-SCRN"] },
+    { sku: ["HW-PHONE", "HW-CASE"] },
+  ];
+
+  const basketCustomers = ["Acme Corp", "Beta Industries", "Cyrus Traders", "Delta Systems"];
+
+  for (let index = 0; index < basket.length; index += 1) {
+    const days = 90 - index * 4;
+    await createQuotation({
+      number: `DF-Q-08${String(index + 1).padStart(2, "0")}`,
+      customer: customers[basketCustomers[index % basketCustomers.length]],
+      rep: sneha,
+      status: QUOTATION_STATUS.CONFIRMED,
+      activityAt: daysAgo(days),
+      extra: { confirmedAt: daysAgo(days - 2) },
+      lines: basket[index].sku.map((sku) =>
+        line(products[sku], 2, products[sku].salesPrice, 4 + (index % 5), BILLING_TYPE.ONE_TIME),
+      ),
+    });
+  }
+
+  // 7) One of Sneha's, so the pipeline is not all from a single rep.
   await createQuotation({
     number: "DF-Q-1005",
     customer: customers["Delta Systems"],
@@ -572,7 +661,7 @@ async function createQuotations(customers, users, products) {
     ],
   });
 
-  return { acme };
+  return { acme, waiting };
 }
 
 // --- run --------------------------------------------------------------------
@@ -625,7 +714,39 @@ async function seedDemo() {
   await createAccessRequests();
 
   console.log("Seeding quotations...");
-  await createQuotations(customers, users, products);
+  const { waiting } = await createQuotations(customers, users, products);
+
+  console.log("Seeding alerts for the waiting approval...");
+  await createPendingAlerts(users, waiting);
+}
+
+// The quotation already sitting with a manager has the alerts it would have
+// raised, so the bell and the outbox both have something in them on first look.
+async function createPendingAlerts(users, waiting) {
+  const managers = [users["manager@dealflow360.test"], users["manager2@dealflow360.test"]];
+
+  for (const manager of managers) {
+    await db.notification.create({
+      data: {
+        userId: manager.id,
+        type: "APPROVAL_REQUESTED",
+        title: `${waiting.number} needs your approval`,
+        body: "Delta Systems · discount risk 2 points",
+        quotationId: waiting.id,
+        createdAt: daysAgo(7),
+      },
+    });
+
+    await db.emailMessage.create({
+      data: {
+        to: manager.email,
+        subject: `${waiting.number} needs your approval`,
+        body: "Delta Systems · discount risk 2 points",
+        quotationId: waiting.id,
+        createdAt: daysAgo(7),
+      },
+    });
+  }
 }
 
 async function main() {

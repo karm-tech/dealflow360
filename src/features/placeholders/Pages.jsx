@@ -2,49 +2,6 @@ import { PlannedPlaceholder } from "../../components/PlannedPlaceholder";
 
 // Every screen has a route; unbuilt ones say what they will contain.
 
-export function QuotationsPage() {
-  return (
-    <PlannedPlaceholder
-      title="Quotations"
-      area="Core loop"
-      description="Active and draft quotations for your customers."
-      willInclude={[
-        "Quotation list with customer, amount and stage",
-        "Quotation builder: pick products, adjust quantity, apply line and order discounts",
-        "Live order total and margin indicator",
-        "Confirm a quotation to turn it into an order",
-      ]}
-    />
-  );
-}
-
-export function PipelinePage() {
-  return (
-    <PlannedPlaceholder
-      title="Pipeline"
-      area="Core loop"
-      description="Deals grouped by stage."
-      willInclude={["Kanban board by quotation status", "Open a card to edit the deal"]}
-    />
-  );
-}
-
-export function ApprovalsPage() {
-  return (
-    <PlannedPlaceholder
-      title="Approvals"
-      area="Governance"
-      description="Quotations waiting on you."
-      willInclude={[
-        "Blended discount risk score for each quotation",
-        "Approval chain: Sales Manager, then Finance when the overage is large",
-        "Approve, reject or return for revision, with the reason recorded",
-        "Full audit trail of who did what and when",
-      ]}
-    />
-  );
-}
-
 export function FulfilmentPage() {
   return (
     <PlannedPlaceholder

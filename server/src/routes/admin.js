@@ -84,7 +84,7 @@ adminRouter.post("/access-requests/:id/approve", async (req, res) => {
     },
   });
 
-  queueEmail({
+  await queueEmail(req.db, {
     to: updated.email,
     subject: "Your DealFlow360 access has been approved",
     body: `Hi ${updated.name}, your account is active. You can now sign in as ${updated.role}.`,
@@ -128,7 +128,7 @@ adminRouter.post("/access-requests/:id/reject", async (req, res) => {
     },
   });
 
-  queueEmail({
+  await queueEmail(req.db, {
     to: updated.email,
     subject: "Your DealFlow360 access request",
     body: `Hi ${updated.name}, your access request was not approved. Reason: ${parsed.data.reason}`,

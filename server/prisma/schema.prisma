@@ -51,6 +51,7 @@ model User {
   approvalSteps  ApprovalStep[]
   activityLogs   ActivityLog[]
   portalMessages PortalMessage[]
+  notifications  Notification[]
 }
 
 model Tier {
@@ -242,6 +243,13 @@ model Quotation {
   lastActivityAt       DateTime  @default(now())
   approvalPendingSince DateTime?
 
+  // Discount applied to the whole order, on top of any line discount.
+  orderDiscountPct Float @default(0)
+
+  // Product ids the rep dismissed from the suggestion panel, comma separated.
+  // Stored so a rejected suggestion does not come back when the quote reopens.
+  dismissedUpsellIds String?
+
   confirmedAt DateTime?
   notes       String?
   createdAt   DateTime  @default(now())
@@ -253,6 +261,7 @@ model Quotation {
   fulfilments    Fulfilment[]
   invoices       Invoice[]
   portalMessages PortalMessage[]
+  notifications  Notification[]
 }
 
 model QuotationLine {
@@ -509,5 +518,48 @@ model Settings {
   // Fulfilment
   defaultShippingCost Float @default(250)
 
+  // Suggestions below this margin are never shown, so the panel cannot talk a
+  // rep into a product that damages the deal.
+  minUpsellMarginPct Float @default(20)
+
   updatedAt DateTime @updatedAt
+}
+
+// In-app alert for one person. Created alongside an email and a live event, so
+// the three channels always carry the same news.
+model Notification {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // APPROVAL_REQUESTED | APPROVAL_ESCALATED | QUOTATION_APPROVED |
+  // QUOTATION_REJECTED | QUOTATION_RETURNED | QUOTATION_ACCEPTED
+  type  String
+  title String
+  body  String?
+
+  quotationId Int?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// Outbound mail. Held in the database rather than in memory so a restart does
+// not lose the record and an admin can read back what was sent.
+model EmailMessage {
+  id      Int    @id @default(autoincrement())
+  to      String
+  subject String
+  body    String
+
+  // QUEUED | SENT | FAILED. Stays QUEUED while no SMTP host is configured.
+  status String  @default("QUEUED")
+  error  String?
+
+  quotationId Int?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
 }
