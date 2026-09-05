@@ -124,7 +124,7 @@ export async function suggestUpsells(db, quotation) {
   }
 
   // Step 2 — ranking.
-  const current = quotationTotals(quotation.lines, quotation.orderDiscountPct);
+  const current = quotationTotals(quotation.lines);
 
   const ranked = candidates
     .map((candidate) => {
@@ -137,10 +137,7 @@ export async function suggestUpsells(db, quotation) {
         product: candidate.product,
         plan: candidate.product.defaultPlan,
       };
-      const withCandidate = quotationTotals(
-        [...quotation.lines, trialLine],
-        quotation.orderDiscountPct,
-      );
+      const withCandidate = quotationTotals([...quotation.lines, trialLine]);
 
       return {
         productId: candidate.product.id,

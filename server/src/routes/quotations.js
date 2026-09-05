@@ -13,6 +13,7 @@ import { QUOTATION_INCLUDE, quotationDetail, quotationSummary } from "../lib/quo
 import { resolveUnitPrice } from "../lib/pricing.js";
 import { suggestUpsells, addDismissed } from "../lib/upsell.js";
 import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
+import { executeFulfilment, suggestFulfilment } from "../lib/fulfilmentService.js";
 
 export const quotationsRouter = Router();
 
@@ -35,14 +36,18 @@ quotationsRouter.use(requireAuth, requireRole(...INTERNAL_ROLES));
 
 const createSchema = z.object({
   customerId: z.number().int().positive("Choose a customer"),
-  promisedDeliveryDate: z.string().optional().nullable(),
+  requestedDeliveryDate: z.string().optional().nullable(),
 });
 
 const headerSchema = z.object({
   customerId: z.number().int().positive().optional(),
-  promisedDeliveryDate: z.string().nullable().optional(),
-  orderDiscountPct: z.number().min(0, "Discount cannot be negative").max(100, "Discount cannot be over 100%").optional(),
+  inquiryDate: z.string().nullable().optional(),
+  requestedDeliveryDate: z.string().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+});
+
+const bulkDiscountSchema = z.object({
+  discountPct: z.number().min(0, "Discount cannot be negative").max(100, "Discount cannot be over 100%"),
 });
 
 const lineSchema = z.object({
@@ -60,16 +65,30 @@ function firstIssue(parsed) {
   return parsed.error.issues[0].message;
 }
 
-// A promised date in the past cannot be met, so it is rejected rather than
+// A delivery date in the past cannot be met, so it is rejected rather than
 // quietly accepted.
-function parsePromisedDate(value) {
+function parseRequestedDate(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return { error: "That delivery date is not valid" };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (date < today) return { error: "The promised delivery date cannot be in the past" };
+  if (date < today) return { error: "The requested delivery date cannot be in the past" };
+
+  return { date };
+}
+
+// The inquiry is a record of something that already happened, so it may be in
+// the past but not in the future.
+function parseInquiryDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { error: "That inquiry date is not valid" };
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (date > today) return { error: "The inquiry date cannot be in the future" };
 
   return { date };
 }
@@ -120,6 +139,26 @@ async function priceForCustomer(db, productId, tierId) {
   return { product, unitPrice: resolveUnitPrice(product, forTier.length ? forTier : usable) };
 }
 
+// Two lines are the same line when everything that decides what is charged
+// matches. A different discount, billing type, plan or start date is a real
+// reason to sell the same product twice on one order, so those stay apart.
+function sameDay(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+function matchingLine(lines, candidate) {
+  return lines.find(
+    (line) =>
+      line.productId === candidate.productId &&
+      line.discountPct === candidate.discountPct &&
+      line.billingType === candidate.billingType &&
+      (line.planId || null) === (candidate.planId || null) &&
+      sameDay(line.startDate, candidate.startDate),
+  );
+}
+
 // Refuses the change unless the quotation is open for edits. The button is
 // hidden in the browser as well, but this is the rule.
 function guardEditable(quotation, res) {
@@ -130,7 +169,9 @@ function guardEditable(quotation, res) {
   return true;
 }
 
-async function respondWithDetail(req, res, quotationId) {
+// `outcome` describes what an action did, for screens that cannot show it —
+// a merged line or a discount written across lines that are not all on screen.
+async function respondWithDetail(req, res, quotationId, outcome = null) {
   const quotation = await loadQuotation(req.db, quotationId);
   const [history, suggestions] = await Promise.all([
     loadHistory(req.db, quotationId),
@@ -148,13 +189,25 @@ async function respondWithDetail(req, res, quotationId) {
       suggestions,
       routing,
     }),
+    ...(outcome || {}),
   });
 }
 
 // --- list and detail --------------------------------------------------------
 
-quotationsRouter.get("/", async (req, res) => {
-  const { status, customerId, repId, search } = req.query;
+// Annual value is worked out per row rather than stored, so ordering happens
+// after the rows are shaped.
+const SORTS = {
+  newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+  oldest: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+  value: (a, b) => b.annualContractValue - a.annualContractValue,
+  customer: (a, b) => a.customer.name.localeCompare(b.customer.name),
+};
+
+// One ordered list for both the table and the pager, so stepping through
+// records follows exactly what the user is looking at.
+async function listQuotations(db, query) {
+  const { status, customerId, repId, search, sort } = query;
 
   const where = {};
   if (status) where.status = status;
@@ -167,13 +220,27 @@ quotationsRouter.get("/", async (req, res) => {
     ];
   }
 
-  const quotations = await req.db.quotation.findMany({
-    where,
-    include: QUOTATION_INCLUDE,
-    orderBy: { createdAt: "desc" },
-  });
+  const quotations = await db.quotation.findMany({ where, include: QUOTATION_INCLUDE });
+  return quotations.map(quotationSummary).sort(SORTS[sort] || SORTS.newest);
+}
 
-  res.json({ quotations: quotations.map(quotationSummary) });
+quotationsRouter.get("/", async (req, res) => {
+  res.json({ quotations: await listQuotations(req.db, req.query) });
+});
+
+// Where this record sits in the filtered list, and what is either side of it.
+quotationsRouter.get("/:id/neighbours", async (req, res) => {
+  const rows = await listQuotations(req.db, req.query);
+  const index = rows.findIndex((row) => row.id === Number(req.params.id));
+
+  if (index === -1) return res.json({ prevId: null, nextId: null, position: null, total: rows.length });
+
+  res.json({
+    prevId: index > 0 ? rows[index - 1].id : null,
+    nextId: index < rows.length - 1 ? rows[index + 1].id : null,
+    position: index + 1,
+    total: rows.length,
+  });
 });
 
 quotationsRouter.get("/:id", async (req, res) => {
@@ -192,8 +259,8 @@ quotationsRouter.post("/", async (req, res) => {
   const customer = await req.db.customer.findUnique({ where: { id: parsed.data.customerId } });
   if (!customer) return res.status(404).json({ error: "That customer no longer exists" });
 
-  const promised = parsePromisedDate(parsed.data.promisedDeliveryDate);
-  if (promised?.error) return res.status(400).json({ error: promised.error });
+  const requested = parseRequestedDate(parsed.data.requestedDeliveryDate);
+  if (requested?.error) return res.status(400).json({ error: requested.error });
 
   const quotation = await req.db.quotation.create({
     data: {
@@ -201,7 +268,8 @@ quotationsRouter.post("/", async (req, res) => {
       customerId: customer.id,
       repId: req.user.id,
       status: QUOTATION_STATUS.DRAFT,
-      promisedDeliveryDate: promised?.date || null,
+      inquiryDate: new Date(),
+      requestedDeliveryDate: requested?.date || null,
     },
   });
 
@@ -233,23 +301,29 @@ quotationsRouter.patch("/:id", async (req, res) => {
     changes.push(describeChange("Customer", quotation.customer.name, customer.name));
   }
 
-  if (parsed.data.promisedDeliveryDate !== undefined) {
-    const promised = parsePromisedDate(parsed.data.promisedDeliveryDate);
-    if (promised?.error) return res.status(400).json({ error: promised.error });
-    data.promisedDeliveryDate = promised?.date || null;
+  if (parsed.data.requestedDeliveryDate !== undefined) {
+    const requested = parseRequestedDate(parsed.data.requestedDeliveryDate);
+    if (requested?.error) return res.status(400).json({ error: requested.error });
+    data.requestedDeliveryDate = requested?.date || null;
     changes.push(
       describeChange(
-        "Promised delivery",
-        quotation.promisedDeliveryDate?.toDateString(),
-        promised?.date?.toDateString(),
+        "Requested delivery",
+        quotation.requestedDeliveryDate?.toDateString(),
+        requested?.date?.toDateString(),
       ),
     );
   }
 
-  if (parsed.data.orderDiscountPct !== undefined) {
-    data.orderDiscountPct = parsed.data.orderDiscountPct;
+  if (parsed.data.inquiryDate !== undefined) {
+    const inquiry = parseInquiryDate(parsed.data.inquiryDate);
+    if (inquiry?.error) return res.status(400).json({ error: inquiry.error });
+    data.inquiryDate = inquiry?.date || null;
     changes.push(
-      describeChange("Order discount", `${quotation.orderDiscountPct}%`, `${parsed.data.orderDiscountPct}%`),
+      describeChange(
+        "Inquiry date",
+        quotation.inquiryDate?.toDateString(),
+        inquiry?.date?.toDateString(),
+      ),
     );
   }
 
@@ -311,7 +385,7 @@ quotationsRouter.post("/:id/duplicate", async (req, res) => {
       customerId: source.customerId,
       repId: req.user.id,
       status: QUOTATION_STATUS.DRAFT,
-      orderDiscountPct: source.orderDiscountPct,
+      inquiryDate: new Date(),
       notes: source.notes,
       lines: {
         create: source.lines.map((line) => ({
@@ -353,28 +427,91 @@ quotationsRouter.post("/:id/lines", async (req, res) => {
   const { product, unitPrice } = resolved;
   const billingType = parsed.data.billingType || product.defaultBillingType;
   const isRecurring = billingType === BILLING_TYPE.RECURRING;
+  const qty = parsed.data.qty ?? 1;
+
+  const candidate = {
+    productId: product.id,
+    discountPct: parsed.data.discountPct ?? 0,
+    billingType,
+    planId: isRecurring ? parsed.data.planId || product.defaultPlanId || "MONTHLY" : null,
+    startDate: isRecurring
+      ? parsed.data.startDate
+        ? new Date(parsed.data.startDate)
+        : new Date()
+      : null,
+  };
+
+  // Adding what is already on the order raises its quantity instead of
+  // repeating the row.
+  const existing = matchingLine(quotation.lines, candidate);
+
+  if (existing) {
+    const newQty = existing.qty + qty;
+    await req.db.quotationLine.update({ where: { id: existing.id }, data: { qty: newQty } });
+
+    await logActivity(req.db, {
+      quotationId: quotation.id,
+      userId: req.user.id,
+      action: "LINE_UPDATED",
+      detail: describeChange(`${product.name} quantity`, existing.qty, newQty),
+    });
+
+    return respondWithDetail(req, res, quotation.id, {
+      merged: true,
+      message: `Added ${qty} to ${product.name} — now ${newQty}`,
+    });
+  }
 
   await req.db.quotationLine.create({
-    data: {
-      quotationId: quotation.id,
-      productId: product.id,
-      qty: parsed.data.qty ?? 1,
-      unitPrice,
-      discountPct: parsed.data.discountPct ?? 0,
-      billingType,
-      planId: isRecurring ? parsed.data.planId || product.defaultPlanId || "MONTHLY" : null,
-      startDate: isRecurring ? (parsed.data.startDate ? new Date(parsed.data.startDate) : new Date()) : null,
-    },
+    data: { quotationId: quotation.id, unitPrice, qty, ...candidate },
   });
 
   await logActivity(req.db, {
     quotationId: quotation.id,
     userId: req.user.id,
     action: "LINE_ADDED",
-    detail: `Added ${product.name} × ${parsed.data.qty ?? 1}`,
+    detail: `Added ${product.name} × ${qty}`,
   });
 
-  await respondWithDetail(req, res, quotation.id);
+  await respondWithDetail(req, res, quotation.id, {
+    message: `${product.name} × ${qty} added`,
+  });
+});
+
+// A blanket discount is written onto every line, so each line still carries the
+// one figure that is charged.
+quotationsRouter.post("/:id/lines/discount", async (req, res) => {
+  const parsed = bulkDiscountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: firstIssue(parsed) });
+
+  const quotation = await loadQuotation(req.db, Number(req.params.id));
+  if (!quotation) return res.status(404).json({ error: "That quotation no longer exists" });
+  if (!guardEditable(quotation, res)) return;
+
+  if (quotation.lines.length === 0) {
+    return res.status(400).json({ error: "There are no lines to discount" });
+  }
+
+  const { discountPct } = parsed.data;
+  const previous = quotation.lines.map((line) => `${line.discountPct}%`).join(", ");
+
+  await req.db.quotationLine.updateMany({
+    where: { quotationId: quotation.id },
+    data: { discountPct },
+  });
+
+  await logActivity(req.db, {
+    quotationId: quotation.id,
+    userId: req.user.id,
+    action: "LINE_UPDATED",
+    detail: `Discount set to ${discountPct}% on every line · was ${previous}`,
+  });
+
+  await respondWithDetail(req, res, quotation.id, {
+    message: `${discountPct}% set on ${quotation.lines.length} ${
+      quotation.lines.length === 1 ? "line" : "lines"
+    }`,
+  });
 });
 
 quotationsRouter.patch("/:id/lines/:lineId", async (req, res) => {
@@ -493,6 +630,10 @@ quotationsRouter.post("/:id/confirm", async (req, res) => {
 
   if (needsApproval) {
     await notifyStepPending(req, quotation, plan.steps[0], plan.risk.score);
+  } else {
+    // Inside its ceilings, so it is approved on the spot and the split is
+    // worked out straight away.
+    await suggestFulfilment(req.db, quotation.id);
   }
 
   await respondWithDetail(req, res, quotation.id);
@@ -520,6 +661,12 @@ quotationsRouter.post("/:id/accept", async (req, res) => {
     action: "QUOTATION_ACCEPTED",
     detail: `${describeChange("Status", quotation.status, QUOTATION_STATUS.CONFIRMED)} · customer accepted`,
   });
+
+  // Agreeing the order is what takes the stock. A quotation that never gets
+  // this far holds none.
+  const confirmed = { ...quotation, status: QUOTATION_STATUS.CONFIRMED };
+  const fulfilment = await executeFulfilment(req.db, req.dbMode, confirmed, req.user.id);
+  if (fulfilment.error) return res.status(409).json({ error: fulfilment.error });
 
   const approvers = await req.db.user.findMany({
     where: { id: { in: quotation.approvalSteps.map((step) => step.actorId).filter(Boolean) } },

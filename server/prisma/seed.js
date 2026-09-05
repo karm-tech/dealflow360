@@ -12,6 +12,7 @@ import {
   APPROVAL_STATUS,
   USER_STATUS,
 } from "../src/lib/constants.js";
+import { suggestFulfilment } from "../src/lib/fulfilmentService.js";
 
 // Which database this run writes to:
 //   npm run seed       -> demo.db  full sample data
@@ -317,23 +318,35 @@ async function createPriceLists(products) {
 //  - only 15 switches exist in total, so an order for 20 must go to backorder
 async function createWarehouses(products) {
   const main = await db.warehouse.create({
-    data: { name: "Main Warehouse", code: "MAIN", city: "Ahmedabad", shippingWeight: 1.0 },
+    data: {
+      name: "Main Warehouse",
+      code: "MAIN",
+      city: "Ahmedabad",
+      shippingWeight: 1.0,
+      leadTimeDays: 2,
+    },
   });
   const east = await db.warehouse.create({
-    data: { name: "East Depot", code: "EAST", city: "Kolkata", shippingWeight: 1.4 },
+    data: {
+      name: "East Depot",
+      code: "EAST",
+      city: "Kolkata",
+      shippingWeight: 1.4,
+      leadTimeDays: 4,
+    },
   });
 
   await db.stock.createMany({
     data: [
-      { warehouseId: main.id, productId: products["HW-LAP-14"].id, qty: 6, reorderLevel: 4 },
-      { warehouseId: main.id, productId: products["HW-DOCK-01"].id, qty: 40, reorderLevel: 10 },
-      { warehouseId: main.id, productId: products["HW-SW-24"].id, qty: 12, reorderLevel: 5 },
-      { warehouseId: main.id, productId: products["HW-PRN-RENT"].id, qty: 5, reorderLevel: 2 },
+      { warehouseId: main.id, productId: products["HW-LAP-14"].id, qty: 6, reorderLevel: 4, replenishmentDays: 10 },
+      { warehouseId: main.id, productId: products["HW-DOCK-01"].id, qty: 40, reorderLevel: 10, replenishmentDays: 7 },
+      { warehouseId: main.id, productId: products["HW-SW-24"].id, qty: 12, reorderLevel: 5, replenishmentDays: 21 },
+      { warehouseId: main.id, productId: products["HW-PRN-RENT"].id, qty: 5, reorderLevel: 2, replenishmentDays: 14 },
 
-      { warehouseId: east.id, productId: products["HW-LAP-14"].id, qty: 7, reorderLevel: 4 },
-      { warehouseId: east.id, productId: products["HW-DOCK-01"].id, qty: 15, reorderLevel: 10 },
-      { warehouseId: east.id, productId: products["HW-SW-24"].id, qty: 3, reorderLevel: 5 },
-      { warehouseId: east.id, productId: products["HW-PRN-RENT"].id, qty: 4, reorderLevel: 2 },
+      { warehouseId: east.id, productId: products["HW-LAP-14"].id, qty: 7, reorderLevel: 4, replenishmentDays: 12 },
+      { warehouseId: east.id, productId: products["HW-DOCK-01"].id, qty: 15, reorderLevel: 10, replenishmentDays: 9 },
+      { warehouseId: east.id, productId: products["HW-SW-24"].id, qty: 3, reorderLevel: 5, replenishmentDays: 28 },
+      { warehouseId: east.id, productId: products["HW-PRN-RENT"].id, qty: 4, reorderLevel: 2, replenishmentDays: 16 },
 
       { warehouseId: main.id, productId: products["HW-MOUSE"].id, qty: 120, reorderLevel: 20 },
       { warehouseId: main.id, productId: products["HW-PHONE"].id, qty: 25, reorderLevel: 5 },
@@ -478,6 +491,8 @@ async function createQuotation({ number, customer, rep, status, lines, activityA
       status,
       lastActivityAt: activityAt,
       createdAt: activityAt,
+      // The customer got in touch a few days before the quotation was written.
+      inquiryDate: new Date(activityAt.getTime() - 3 * 24 * 60 * 60 * 1000),
       ...extra,
       lines: { create: lines },
     },
@@ -521,7 +536,7 @@ async function createQuotations(customers, users, products) {
     status: QUOTATION_STATUS.DRAFT,
     activityAt: daysAgo(1),
     extra: {
-      promisedDeliveryDate: daysFromNow(10),
+      requestedDeliveryDate: daysFromNow(10),
       notes: "Office refresh — 10 seats, plus support and a printer on rent.",
     },
     lines: [
@@ -540,7 +555,7 @@ async function createQuotations(customers, users, products) {
     rep: karan,
     status: QUOTATION_STATUS.SENT,
     activityAt: daysAgo(14),
-    extra: { promisedDeliveryDate: daysFromNow(4) },
+    extra: { requestedDeliveryDate: daysFromNow(4) },
     lines: [
       line(products["HW-SW-24"], 4, 15000, 8, BILLING_TYPE.ONE_TIME),
       line(products["SV-TRAIN"], 1, 25000, 6, BILLING_TYPE.ONE_TIME),
@@ -570,7 +585,7 @@ async function createQuotations(customers, users, products) {
     activityAt: daysAgo(7),
     extra: {
       approvalPendingSince: daysAgo(7),
-      promisedDeliveryDate: daysFromNow(6),
+      requestedDeliveryDate: daysFromNow(6),
       riskScore: 2,
     },
     lines: [
@@ -661,7 +676,36 @@ async function createQuotations(customers, users, products) {
     ],
   });
 
-  return { acme, waiting };
+  // 8) Approved and waiting to ship. Ten laptops cannot come from one
+  //    warehouse (6 + 7 in stock), so the split has to use both.
+  const splitOrder = await createQuotation({
+    number: "DF-Q-1006",
+    customer: customers["Beta Industries"],
+    rep: karan,
+    status: QUOTATION_STATUS.APPROVED,
+    activityAt: daysAgo(2),
+    extra: { requestedDeliveryDate: daysFromNow(12) },
+    lines: [
+      line(products["HW-LAP-14"], 10, products["HW-LAP-14"].salesPrice, 6, BILLING_TYPE.ONE_TIME),
+      line(products["SV-SETUP"], 1, products["SV-SETUP"].salesPrice, 5, BILLING_TYPE.ONE_TIME),
+    ],
+  });
+
+  // 9) Approved, but only 15 switches exist against an order for 20, so five
+  //    go to backorder and the delivery date lands past what was promised.
+  const backorderOrder = await createQuotation({
+    number: "DF-Q-1007",
+    customer: customers["Cyrus Traders"],
+    rep: sneha,
+    status: QUOTATION_STATUS.APPROVED,
+    activityAt: daysAgo(3),
+    extra: { requestedDeliveryDate: daysFromNow(10) },
+    lines: [
+      line(products["HW-SW-24"], 20, products["HW-SW-24"].salesPrice, 4, BILLING_TYPE.ONE_TIME),
+    ],
+  });
+
+  return { acme, waiting, splitOrder, backorderOrder };
 }
 
 // --- run --------------------------------------------------------------------
@@ -714,7 +758,13 @@ async function seedDemo() {
   await createAccessRequests();
 
   console.log("Seeding quotations...");
-  const { waiting } = await createQuotations(customers, users, products);
+  const { waiting, splitOrder, backorderOrder } = await createQuotations(customers, users, products);
+
+  // Run the real allocation rather than writing shipments by hand, so the
+  // seeded split is the same one the app would produce.
+  console.log("Allocating stock for approved orders...");
+  await suggestFulfilment(db, splitOrder.id);
+  await suggestFulfilment(db, backorderOrder.id);
 
   console.log("Seeding alerts for the waiting approval...");
   await createPendingAlerts(users, waiting);
