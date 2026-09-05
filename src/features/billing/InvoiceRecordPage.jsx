@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Repeat, TriangleAlert, Undo2 } from "lucide-react";
+import { Banknote, FileText, Repeat, TriangleAlert, Undo2 } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import { RecordLink } from "../../components/RecordLink";
 import { RecordNav } from "../../components/RecordNav";
@@ -25,6 +25,7 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { openPdf } from "../../lib/exports";
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_TONES,
@@ -104,12 +105,20 @@ export function InvoiceRecordPage() {
           </SmartButtons>
         }
         actions={
-          canAct &&
-          !isSettled && (
-            <Button icon={Banknote} onClick={() => setShowPayment(true)}>
-              Record a payment
+          <>
+            <Button
+              variant="secondary"
+              icon={FileText}
+              onClick={() => openPdf(`/documents/invoices/${invoice.id}.pdf`, toast)}
+            >
+              PDF
             </Button>
-          )
+            {canAct && !isSettled && (
+              <Button icon={Banknote} onClick={() => setShowPayment(true)}>
+                Record a payment
+              </Button>
+            )}
+          </>
         }
       />
 

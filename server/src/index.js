@@ -10,7 +10,14 @@ import { approvalsRouter } from "./routes/approvals.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { fulfilmentRouter } from "./routes/fulfilment.js";
 import { billingRouter } from "./routes/billing.js";
+import { portalRouter } from "./routes/portal.js";
+import { configRouter } from "./routes/config.js";
+import { companyRouter } from "./routes/company.js";
+import { dashboardRouter } from "./routes/dashboard.js";
+import { documentsRouter } from "./routes/documents.js";
 import { initRealtime } from "./lib/realtime.js";
+import { startRenewalTicker } from "./lib/renewalTicker.js";
+import { UPLOADS_DIR } from "./lib/uploads.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -31,6 +38,15 @@ app.use("/api/approvals", approvalsRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/fulfilment", fulfilmentRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/portal", portalRouter);
+app.use("/api/config", configRouter);
+app.use("/api/company", companyRouter);
+app.use("/api/dashboard", dashboardRouter);
+app.use("/api/documents", documentsRouter);
+
+// The company logo is the only uploaded file, and it is on show in the page
+// header and on every document, so it is served without a token.
+app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "1h" }));
 
 // Routes read their database from req.db, never by importing a client.
 // See server/src/routes/README.md.
@@ -53,4 +69,5 @@ initRealtime(server, CLIENT_ORIGIN);
 
 server.listen(PORT, () => {
   console.log(`DealFlow360 API listening on http://localhost:${PORT}`);
+  startRenewalTicker();
 });

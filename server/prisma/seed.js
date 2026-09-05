@@ -82,6 +82,32 @@ async function clearEverything() {
 
 // --- configuration ----------------------------------------------------------
 
+// Mail settings are edited on the settings screen and read from the database at
+// send time. These are only the values a fresh install starts with, so an
+// installation's own mail server survives a reseed instead of being retyped.
+function smtpFromEnv() {
+  const host = (process.env.SMTP_HOST || "").trim();
+  const user = (process.env.SMTP_USER || "").trim();
+  if (!host) return {};
+
+  // A username that is not an address means the placeholder was never replaced.
+  // Seeding it would leave every message failing on a bad login, so the
+  // installation stays on the outbox until real credentials are in place.
+  if (!user.includes("@")) {
+    console.log("Ignoring SMTP_HOST: SMTP_USER is not set to an email address.");
+    return {};
+  }
+
+  return {
+    smtpHost: host,
+    smtpPort: Number(process.env.SMTP_PORT) || 587,
+    smtpSecure: process.env.SMTP_SECURE === "true",
+    smtpUser: user,
+    smtpPassword: process.env.SMTP_PASS || null,
+    smtpFrom: (process.env.MAIL_FROM || "").trim() || null,
+  };
+}
+
 async function createSettings() {
   await db.settings.create({
     data: {
@@ -92,6 +118,7 @@ async function createSettings() {
       minQuotesForRepAverage: 3,
       financeApprovalOveragePoints: 10,
       defaultShippingCost: 250,
+      ...smtpFromEnv(),
     },
   });
 }
@@ -370,9 +397,12 @@ async function createWarehouses(products) {
 async function createApprovalRules() {
   await db.approvalRule.createMany({
     data: [
+      // Starts at zero because the engine already refuses to route a quotation
+      // with no overage; a band starting above zero would leave a sliver of
+      // overage covered by nothing.
       {
         name: "Manager approval",
-        minOveragePoints: 0.01,
+        minOveragePoints: 0,
         maxOveragePoints: 5,
         requiresManager: true,
         requiresFinance: false,
@@ -412,6 +442,10 @@ async function createCustomers() {
     { name: "Beta Industries", email: "buying@beta.test", city: "Pune", state: "Maharashtra", tierId: "SILVER" },
     { name: "Cyrus Traders", email: "info@cyrus.test", city: "Surat", state: "Gujarat", tierId: "BRONZE" },
     { name: "Delta Systems", email: "ops@delta.test", city: "Bengaluru", state: "Karnataka", tierId: "GOLD" },
+    // On Gold by an old decision, but walks away from deals and pays late. The
+    // reliability score is what notices, and it suggests pulling the ceiling
+    // back without touching it.
+    { name: "Gamma Ltd", email: "purchase@gamma.test", city: "Indore", state: "Madhya Pradesh", tierId: "GOLD" },
   ];
 
   const customers = {};
@@ -449,6 +483,7 @@ async function createUsers(customers) {
     { name: "Beta Buyer", email: "beta@portal.test", customer: "Beta Industries" },
     { name: "Cyrus Buyer", email: "cyrus@portal.test", customer: "Cyrus Traders" },
     { name: "Delta Buyer", email: "delta@portal.test", customer: "Delta Systems" },
+    { name: "Gamma Buyer", email: "gamma@portal.test", customer: "Gamma Ltd" },
   ];
 
   for (const row of portal) {
@@ -612,6 +647,73 @@ async function createQuotations(customers, users, products) {
     },
   });
 
+  // 4b) Typed in by the customer on the portal rather than by a rep. It arrives
+  //     as an undiscounted draft with the buyer's own note attached, which is
+  //     what the rep picks up and prices.
+  const fromPortal = await createQuotation({
+    number: "DF-Q-1009",
+    customer: customers["Cyrus Traders"],
+    rep: karan,
+    status: QUOTATION_STATUS.DRAFT,
+    activityAt: daysAgo(1),
+    extra: { inquiryDate: daysAgo(1) },
+    lines: [
+      line(products["HW-PHONE"], 6, 45000, 0, BILLING_TYPE.ONE_TIME),
+      line(products["HW-CASE"], 6, 800, 0, BILLING_TYPE.ONE_TIME),
+    ],
+  });
+
+  await db.portalMessage.create({
+    data: {
+      quotationId: fromPortal.id,
+      authorId: users["cyrus@portal.test"].id,
+      text: "Six handsets for the new sales team, with covers. We would need them within a fortnight — can you confirm that is possible before we commit?",
+      createdAt: daysAgo(1),
+    },
+  });
+
+  // 4c) Two deals that have genuinely gone wrong, so the health score has
+  //     something to find. Both are live, so both are scored: the numbers on the
+  //     dashboard come from these rows rather than from anything stored.
+
+  // Abandoned for six weeks and discounted far past what Karan normally gives,
+  // for a customer who has walked away before. Three separate penalties.
+  await createQuotation({
+    number: "DF-Q-1010",
+    customer: customers["Gamma Ltd"],
+    rep: karan,
+    status: QUOTATION_STATUS.SENT,
+    activityAt: daysAgo(41),
+    extra: {
+      requestedDeliveryDate: daysAgo(12),
+      estimatedDeliveryDate: daysFromNow(9),
+      riskScore: 19,
+    },
+    lines: [
+      line(products["HW-LAP-14"], 8, 60000, 34, BILLING_TYPE.ONE_TIME),
+      line(products["SV-SETUP"], 1, 40000, 30, BILLING_TYPE.ONE_TIME),
+    ],
+  });
+
+  // Quiet for a fortnight with the delivery already slipping. Enough to be worth
+  // a nudge, not enough to be critical.
+  await createQuotation({
+    number: "DF-Q-1011",
+    customer: customers["Beta Industries"],
+    rep: sneha,
+    status: QUOTATION_STATUS.SENT,
+    activityAt: daysAgo(19),
+    extra: {
+      requestedDeliveryDate: daysAgo(3),
+      estimatedDeliveryDate: daysFromNow(5),
+      riskScore: 4,
+    },
+    lines: [
+      line(products["HW-SW-24"], 6, 15000, 9, BILLING_TYPE.ONE_TIME),
+      line(products["HW-DOCK-01"], 6, 8000, 7, BILLING_TYPE.ONE_TIME),
+    ],
+  });
+
   // 5) Karan's history, so the anomaly detector has an average to compare to.
   const history = [
     { number: "DF-Q-0901", customer: "Acme Corp", discount: 7, days: 40 },
@@ -629,6 +731,32 @@ async function createQuotations(customers, users, products) {
       activityAt: daysAgo(row.days),
       extra: { confirmedAt: daysAgo(row.days - 2) },
       lines: [line(products["HW-DOCK-01"], 5, 8000, row.discount, BILLING_TYPE.ONE_TIME)],
+    });
+  }
+
+  // 5b) Gamma's track record — the evidence behind their reliability score.
+  //     Three deals they walked away from and two they saw through but paid
+  //     late. None of this is entered as a score; the score reads these rows.
+  const gammaRecord = [
+    { number: "DF-Q-0701", status: QUOTATION_STATUS.REJECTED, days: 95 },
+    { number: "DF-Q-0702", status: QUOTATION_STATUS.CONFIRMED, days: 88 },
+    { number: "DF-Q-0703", status: QUOTATION_STATUS.REJECTED, days: 74 },
+    { number: "DF-Q-0704", status: QUOTATION_STATUS.CANCELLED, days: 61 },
+    { number: "DF-Q-0705", status: QUOTATION_STATUS.CONFIRMED, days: 52 },
+  ];
+
+  for (const row of gammaRecord) {
+    await createQuotation({
+      number: row.number,
+      customer: customers["Gamma Ltd"],
+      rep: sneha,
+      status: row.status,
+      activityAt: daysAgo(row.days),
+      extra:
+        row.status === QUOTATION_STATUS.CONFIRMED
+          ? { confirmedAt: daysAgo(row.days - 4) }
+          : { cancelReason: "Went with another supplier on price" },
+      lines: [line(products["HW-LAP-14"], 4, 60000, 11, BILLING_TYPE.ONE_TIME)],
     });
   }
 
@@ -790,6 +918,10 @@ const PAST_ORDER_SETTLEMENTS = [
   { number: "DF-Q-0902", settle: 1, daysToPay: 31 },
   { number: "DF-Q-0903", settle: 0.4, daysToPay: 10 },
   { number: "DF-Q-0904", settle: 1, daysToPay: 6 },
+  // Gamma settles eventually, well past the 30 day terms. Both invoices read as
+  // paid, which is the point: the score is about when, not whether.
+  { number: "DF-Q-0702", settle: 1, daysToPay: 72 },
+  { number: "DF-Q-0705", settle: 1, daysToPay: 65 },
 ];
 
 // Orders confirmed before today already carry their invoices. Payments are
@@ -877,6 +1009,12 @@ async function seedDemo() {
   const customers = await createCustomers();
   const users = await createUsers(customers);
   await createAccessRequests();
+
+  // Portal requests need an owner before one can arrive, so the demo names one.
+  await db.settings.update({
+    where: { id: 1 },
+    data: { portalSalesRepId: users["rep@dealflow360.test"].id },
+  });
 
   console.log("Seeding quotations...");
   const { waiting, splitOrder, backorderOrder, mixedOrder } = await createQuotations(

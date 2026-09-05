@@ -5,17 +5,24 @@ import { APPROVAL_STATUS, INTERNAL_ROLES } from "./constants.js";
 import { quotationTotals } from "./pricing.js";
 import { isEditable } from "./quotationRules.js";
 import { scoreQuotation } from "./risk.js";
+import { onHandQty, shortStockLines } from "./stock.js";
+import { defaultRenewalLeadDays, maxRenewalLeadDays } from "./renewal.js";
 
 export const QUOTATION_INCLUDE = {
   customer: { include: { tier: true } },
   rep: { select: { id: true, name: true, email: true } },
   lines: {
-    include: { product: { include: { category: true } }, plan: true },
+    include: { product: { include: { category: true, stocks: true } }, plan: true },
     orderBy: { id: "asc" },
   },
   approvalSteps: {
     include: { actor: { select: { id: true, name: true } } },
     orderBy: { sequence: "asc" },
+  },
+  renewsSubscription: { select: { id: true, reference: true } },
+  portalMessages: {
+    include: { author: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "asc" },
   },
   // Counted rather than loaded: the form only shows how many shipments exist.
   // A returned parcel is dead history, so it is not counted as a shipment.
@@ -39,6 +46,7 @@ export function quotationSummary(quotation) {
       tier: quotation.customer.tier.name,
     },
     rep: quotation.rep ? quotation.rep.name : null,
+    isRenewal: Boolean(quotation.renewsSubscriptionId),
     lineCount: quotation.lines.length,
     riskScore: quotation.riskScore,
     annualContractValue: totals.annualContractValue,
@@ -49,7 +57,10 @@ export function quotationSummary(quotation) {
   };
 }
 
-function lineView(line, figures) {
+function lineView(line, figures, shortByProduct) {
+  const onHand = onHandQty(line.product);
+  const short = shortByProduct.get(line.productId);
+
   return {
     id: line.id,
     productId: line.productId,
@@ -64,7 +75,17 @@ function lineView(line, figures) {
     planId: line.planId,
     planName: line.plan ? line.plan.name : null,
     startDate: line.startDate,
+    // The effective notice, not the raw column: a line saved before it had one
+    // still renews, on the default for its plan.
+    renewalLeadDays: line.plan
+      ? line.renewalLeadDays ?? defaultRenewalLeadDays(line.plan)
+      : null,
+    // The cap depends on the plan's period, so it is worked out here rather
+    // than repeating the period maths in the browser.
+    renewalLeadDaysMax: line.plan ? maxRenewalLeadDays(line.plan) : null,
     isStockable: line.product.isStockable,
+    onHand,
+    isShort: Boolean(short),
     taxRatePct: figures.taxRatePct,
     net: figures.net,
     taxAmount: figures.taxAmount,
@@ -80,6 +101,8 @@ export function quotationDetail(
 ) {
   const totals = quotationTotals(quotation.lines);
   const internal = isInternal(role);
+  const short = shortStockLines(quotation.lines);
+  const shortByProduct = new Map(short.map((row) => [row.productId, row]));
 
   const view = {
     id: quotation.id,
@@ -103,7 +126,26 @@ export function quotationDetail(
     confirmedAt: quotation.confirmedAt,
     createdAt: quotation.createdAt,
     lastActivityAt: quotation.lastActivityAt,
-    lines: quotation.lines.map((line, index) => lineView(line, totals.lineFigures[index])),
+    lines: quotation.lines.map((line, index) =>
+      lineView(line, totals.lineFigures[index], shortByProduct),
+    ),
+    // Set when this order renews a subscription rather than being new business.
+    renewal: quotation.renewsSubscription
+      ? {
+          subscriptionId: quotation.renewsSubscription.id,
+          reference: quotation.renewsSubscription.reference,
+          periodStart: quotation.renewalPeriodStart,
+        }
+      : null,
+    stockWarnings: short,
+    // The customer's own words — what they asked for, and why they sent it
+    // back. Both sides read the same thread.
+    messages: (quotation.portalMessages || []).map((message) => ({
+      id: message.id,
+      text: message.text,
+      by: message.author ? message.author.name : "Customer",
+      at: message.createdAt,
+    })),
     totals: {
       oneTimeNet: totals.oneTimeNet,
       recurringMonthlyNet: totals.recurringMonthlyNet,

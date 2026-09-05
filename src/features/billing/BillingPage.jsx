@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { Download, TriangleAlert } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
 import {
   Badge,
@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  ListPager,
   Select,
   Spinner,
   StatusPill,
@@ -17,12 +18,17 @@ import {
   TH,
   THead,
   TR,
+  useToast,
 } from "../../components/ui";
+import { useAuth } from "../../app/AuthProvider";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { pageFromSearch, paginate } from "../../lib/list";
+import { downloadExport } from "../../lib/exports";
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_TONES,
+  ROLES,
   SUBSCRIPTION_STATUS_LABELS,
   SUBSCRIPTION_STATUS_TONES,
 } from "../../lib/constants";
@@ -37,6 +43,9 @@ const VIEWS = [
 
 export function BillingPage() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { user } = useAuth();
+  const canExport = [ROLES.ADMIN, ROLES.FINANCE].includes(user?.role);
 
   // Filters live in the address bar so a link reproduces the same list and the
   // record pager can be handed the query the rows came from.
@@ -46,11 +55,13 @@ export function BillingPage() {
   const overdue = params.get("overdue") === "true";
   const quotationId = params.get("quotationId") || "";
   const customerId = params.get("customerId") || "";
+  const page = pageFromSearch(params);
 
   function setParam(key, value) {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+    if (key !== "page") next.delete("page");
     setParams(next, { replace: true });
   }
 
@@ -61,6 +72,7 @@ export function BillingPage() {
     next.set("view", key);
     next.delete("status");
     next.delete("overdue");
+    next.delete("page");
     setParams(next, { replace: true });
   }
 
@@ -84,7 +96,8 @@ export function BillingPage() {
     return <ErrorState message={errorMessage(billing.error)} onRetry={billing.refetch} />;
   }
 
-  const rows = billing.data;
+  const windowed = paginate(billing.data, page);
+  const rows = windowed.rows;
   // Carried onto the record so its pager walks this list rather than all of it.
   const listParams = params.toString();
 
@@ -101,6 +114,19 @@ export function BillingPage() {
       <PageHeader
         title="Billing"
         subtitle="What has been invoiced, what is still owed, and what recurs."
+        actions={
+          // Only the roles the export route answers are offered it, and only
+          // for invoices; subscriptions have no export.
+          canExport && view === "invoices" ? (
+            <Button
+              variant="secondary"
+              icon={Download}
+              onClick={() => downloadExport("invoices", { status }, toast)}
+            >
+              Export CSV
+            </Button>
+          ) : null
+        }
       />
 
       <div className="mb-4 flex gap-1 border-b border-sand-200">
@@ -167,21 +193,26 @@ export function BillingPage() {
         )}
       </div>
 
-      {rows.length === 0 ? (
+      {windowed.total === 0 ? (
         <EmptyState
           title={view === "invoices" ? "No invoices match" : "No subscriptions match"}
           hint="Billing is raised when an order is confirmed: one invoice now, and a subscription for every recurring line."
         />
-      ) : view === "invoices" ? (
-        <InvoiceRows
-          rows={rows}
-          onOpen={(id) => navigate(`/billing/invoices/${id}?${listParams}`)}
-        />
       ) : (
-        <SubscriptionRows
-          rows={rows}
-          onOpen={(id) => navigate(`/billing/subscriptions/${id}?${listParams}`)}
-        />
+        <>
+          {view === "invoices" ? (
+            <InvoiceRows
+              rows={rows}
+              onOpen={(id) => navigate(`/billing/invoices/${id}?${listParams}`)}
+            />
+          ) : (
+            <SubscriptionRows
+              rows={rows}
+              onOpen={(id) => navigate(`/billing/subscriptions/${id}?${listParams}`)}
+            />
+          )}
+          <ListPager {...windowed} onPage={(next) => setParam("page", String(next))} />
+        </>
       )}
     </div>
   );
