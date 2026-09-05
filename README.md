@@ -1,6 +1,6 @@
 # DealFlow360
 
-Self-governing B2B sales operations platform — quotation to cash with automated discount approval routing, multi-warehouse fulfilment, hybrid billing and customer portal negotiation. Odoo Hackathon 2026.
+Self-governing B2B sales operations platform — quotation to cash with automated discount approval routing, multi-warehouse fulfilment, hybrid billing and customer portal negotiation.
 
 Most sales tools stop at "create a quote, confirm an order, invoice it". DealFlow360 enforces
 pricing discipline, reacts to real stock, keeps one-time and recurring lines reconciled on a single
@@ -26,7 +26,7 @@ Open **http://localhost:5173**.
 
 ## Two databases: demo and live
 
-The login screen asks which instance you want before you sign in.
+Each instance has its own sign-in page: `/login` for live, `/demo` for the sample data.
 
 | | **Demo** (`demo.db`) | **Live** (`dev.db`) |
 |---|---|---|
@@ -36,16 +36,17 @@ The login screen asks which instance you want before you sign in.
 
 They are two separate SQLite files opened by two separate connections. **Which one a session uses is
 carried inside the signed login token**, not in a header or a setting, so a demo session cannot
-reach live records by sending a different request — it would have to log in again. Every screen in
-demo mode carries an amber banner so there is never any doubt which data you are changing.
+reach live records by sending a different request — it would have to log in again. In demo mode a
+thin rail sits above the header and the header carries a "Demo data" chip, so it is always clear
+which database you are changing.
 
 `npm run setup` is `prisma generate` + `npm run migrate:all` (migrates both files) + both seeds.
 To reload just the demo data, run `npm run seed` again — it clears and rewrites everything.
 
 ## Signing up is a request, not an account
 
-The problem statement allows internal signup, but this system governs discount approvals, so
-letting anyone create their own sales account would be a hole. Signing up creates a **pending
+Internal signup is supported, but this system governs discount approvals, so letting anyone create
+their own sales account would be a hole. Signing up creates a **pending
 request with no role and no login token**. An admin opens **Access Requests**, picks the role, and
 approves or declines with a reason. The role the admin chooses is what the person gets — what they
 asked for on the form is recorded but grants nothing.
@@ -54,8 +55,8 @@ Both decisions are written to the audit trail and queued to the email outbox.
 
 ## Demo accounts
 
-Every account uses the password **`demo1234`**. Choose **Open the demo** on the login screen; it
-lists the internal accounts and fills the form when you click one.
+Every account uses the password **`demo1234`**. Open **/demo** and click any role to sign straight
+in, or type the credentials by hand on the same page.
 
 | Role | Email | Sees |
 |---|---|---|
@@ -114,21 +115,26 @@ neither. A single order can therefore mix one-time products and subscriptions, a
 stockable lines ever reach a warehouse.
 
 **Routes never import a database client.** They use `req.db`, which the auth middleware sets from
-the `db` claim in the login token. That is the one rule every later phase follows, and it is what
-keeps demo and live apart. See `server/src/routes/README.md`.
+the `db` claim in the login token. That is the one rule, and it is what
+keeps demo and live apart — every route follows it. See `server/src/routes/README.md`.
 
-## Build status
+## What is implemented
 
-| Phase | Area | State |
-|---|---|---|
-| 1 | Foundation — schema, seed, auth, RBAC, app shell | **Done** |
-| 1.5 | Access requests, separate demo and live databases | **Done** |
-| 2 | Quotation builder and the core loop | Next |
-| 3 | Blended risk score and approval routing | Planned |
-| 4 | Warehouse split and backorders | Planned |
-| 5 | Hybrid billing, subscriptions, proration | Planned |
-| 6 | Customer portal negotiation | Planned |
-| 7 | Back-end configuration screens | Planned |
-| 8 | Deal health dashboard and reports | Planned |
+| Area | State |
+|---|---|
+| Data model, seed data, SQLite setup | **Done** |
+| Authentication, JWT, role-based access | **Done** |
+| Access requests with admin approval | **Done** |
+| Separate demo and live databases | **Done** |
+| App shell, navigation, route guards, customer portal shell | **Done** |
+| Design system and shared UI components | **Done** |
+| Quotation builder and the quote-to-order loop | Next |
+| Blended discount risk score and approval routing | Planned |
+| Warehouse split and backorders | Planned |
+| Hybrid billing, subscriptions, proration | Planned |
+| Customer portal negotiation | Planned |
+| Back-end configuration screens | Planned |
+| Deal health dashboard and reports | Planned |
 
-Screens for phases 2–8 already have routes and role guards; each one names the phase that fills it.
+Screens that are not built yet already have their routes and role guards in place, and each one
+states what it will contain rather than pretending to work.

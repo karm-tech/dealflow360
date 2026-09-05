@@ -84,6 +84,13 @@
     --color-state-bad: 153 32 24;
     --color-state-bad-soft: 251 233 231;
     --color-state-bad-border: 239 179 172;
+
+    /* Demo instance. Deliberately OUTSIDE the state scale: a status colour
+       describes a deal, this describes which database you are in. A muted plum
+       because every warm hue near amber would be mistaken for warn. */
+    --color-demo: 110 75 99;
+    --color-demo-soft: 243 235 240;
+    --color-demo-border: 220 201 214;
   }
 
   body {

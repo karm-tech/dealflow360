@@ -12,17 +12,18 @@ import { DB_MODES, ROLE_LABELS, ROLE_ORDER, ROLES } from "../../lib/constants";
 
 const DEMO_PASSWORD = "demo1234";
 
-// Same amber as the banner inside the app, so the demo looks like the demo from
-// the moment you arrive.
+// The one place the full sentence is spelled out. This is the entrance, so it
+// can afford to be explicit — inside the app the same idea is carried by a 3px
+// rail and a chip, because there it would be shouting on every page forever.
 function DemoStrip() {
   return (
-    <div className="border-t-2 border-state-warnBorder bg-state-warn">
+    <div className="bg-demo">
       <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2 text-white">
         <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <p className="text-sm font-medium">
-          <span className="font-semibold uppercase tracking-wide">Demo mode</span>
+        <p className="text-sm">
+          <span className="font-semibold">Demo mode</span>
           {" — "}
-          sample data. Nothing here touches live records.
+          sample data. Nothing here is saved to live records.
         </p>
       </div>
     </div>
@@ -31,8 +32,8 @@ function DemoStrip() {
 
 // The demo entrance. Everything here signs in to the demo database.
 //
-// One click on an account signs straight in — a judge should be inside the app
-// immediately, not copying an address into a form. The typed form underneath is
+// One click on an account signs straight in — someone trying the app should be
+// inside it immediately, not copying an address into a form. The typed form underneath is
 // there for anyone who would rather do it the normal way.
 export function DemoPage() {
   const { login } = useAuth();

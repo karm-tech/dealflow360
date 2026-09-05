@@ -25,8 +25,8 @@ Colours are declared as CSS variables in `src/index.css` and read by
 `tailwind.config.js`. They hold `R G B` channel numbers rather than hex, which
 is what lets Tailwind still apply opacity (`bg-ink-700/10`).
 
-A dark theme in Phase 9 means redefining that one variable block under `.dark`.
-No component changes.
+A dark theme means redefining that one variable block under `.dark`. No
+component changes.
 
 ### Ink — the accent
 
@@ -76,6 +76,29 @@ ones do not pass contrast on their own soft fill.
 | warn | `#8A5200` | `#FDF1DD` | `#EDCB92` | needs attention, waiting, at risk |
 | bad | `#992018` | `#FBE9E7` | `#EFB3AC` | critical, declined, cancelled |
 
+### Demo — the instance, not the deal
+
+One extra token, and it is deliberately **not** part of the state scale.
+
+| Token | Hex | Used for |
+|---|---|---|
+| `demo` | `#6E4B63` | the 3px rail above the header, chip text, the /demo entry strip |
+| `demo-soft` | `#F3EBF0` | the "Demo data" chip background, the /login demo panel |
+| `demo-border` | `#DCC9D6` | borders on both |
+
+> **Status colours describe a deal. The demo tone describes the instance. They
+> must never be confusable.**
+
+That is the whole reason this is a muted plum and not the obvious dusty ochre.
+`warn` sits at hue 36° and `bad` at 4°, so any clay or amber would land right
+between two status colours — and "you are in the sandbox" would look identical
+to "this deal is at risk" at a glance. Plum sits at 319°, and unlike `warn` it
+actually contains blue (110 75 99 against 138 82 0), so the two read as
+different kinds of thing rather than two shades of the same warning.
+
+Live mode gets a plain greyscale chip, not green — green is `state.ok` and
+would say "this is healthy" rather than "this is the real database".
+
 `StatusPill` also has two non-health tones: `neutral` (a status carrying no
 judgement, e.g. Draft) and `info` (work under way on our side, e.g. Sent) which
 uses the navy tint so it never reads as a warning.
@@ -92,15 +115,17 @@ Every pair below was checked against WCAG AA (4.5:1 for normal text).
 | `state-ok` on `state-okSoft` | 5.8:1 |
 | `state-warn` on `state-warnSoft` | 5.6:1 |
 | `state-bad` on `state-badSoft` | 6.9:1 |
-| white on `state-warn` (demo banner) | 6.3:1 |
+| white on `state-warn` | 6.3:1 |
+| `demo` on `demo-soft` (the chip) | 6.3:1 |
+| white on `demo` (/demo entry strip) | 7.4:1 |
 
 ---
 
 ## Type
 
-Three faces, three jobs. All **self-hosted** from `public/fonts` — the Odoo
-guidelines say to plan for working offline, and a venue with no internet must
-not be able to change how the app looks halfway through a demo.
+Three faces, three jobs. All **self-hosted** from `public/fonts` — the interface
+renders identically with no network access, and the type cannot shift if a
+third-party font host is slow or unreachable.
 
 | Role | Face | Why |
 |---|---|---|
@@ -179,20 +204,22 @@ One import: `import { Button, Card, Field, Input } from "../../components/ui";`
 | `Modal` | confirmations and small forms. Escape closes it and background scroll is locked. |
 
 App-level pieces live one level up in `src/components`: `Layout`, `PortalLayout`,
-`DemoBanner`, `PageHeader`, `PhasePlaceholder`, `Wordmark`.
+`InstanceMarker` (the demo rail and the mode chip), `PageHeader`,
+`PhasePlaceholder`, `Wordmark`.
 
 ---
 
 ## Deliberate exceptions
 
-**The demo banner shouts.** It is a deep ochre bar with a bright amber edge and
-white text, and it is the one place in the app allowed to be loud. Someone who
-thinks they are in the demo while editing live records is the worst thing that
-can happen here, so the banner is louder than good taste would otherwise allow.
+**The demo marker is quiet, and says its piece once.** Inside the app it is a
+3px rail above the header plus a "Demo data" chip, with the full sentence in the
+chip's tooltip. The only place that spells it out is `/demo`, the entrance —
+because a permanent full-width sentence on every page is shouting the same thing
+forever, and anything shouted permanently stops being read.
 
 **The customer portal reads differently.** Narrower column, no toolbar, no
-staff navigation — the spec asks for a genuinely separate restricted view, and
-it should not feel like an internal system with menus hidden.
+staff navigation. It is a separate restricted view, not the internal app with
+menus hidden, and it should not feel like one.
 
 **Active nav is underlined, not filled.** Seven filled pills in a row would
 fight the page content for attention.

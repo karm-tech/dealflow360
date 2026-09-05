@@ -127,7 +127,7 @@ model Product {
   // Free warranty is an attribute of the product, not a sellable line.
   warrantyMonths Int?
 
-  // Used by the upsell panel in a later phase.
+  // Used by the upsell panel.
   isPromoted   Boolean @default(false)
   minMarginPct Float   @default(0)
 
@@ -238,11 +238,11 @@ model Quotation {
   promisedDeliveryDate  DateTime?
   estimatedDeliveryDate DateTime?
 
-  // Blended discount risk, recalculated whenever lines change (Phase 3).
+  // Blended discount risk, recalculated whenever lines change.
   riskScore       Float   @default(0)
   requiresFinance Boolean @default(false)
 
-  // Deal health reads these two (Phase 8). lastActivityAt is refreshed by the
+  // Deal health reads these two. lastActivityAt is refreshed by the
   // activity log, so "stalled" is measured from real events, never a flag.
   lastActivityAt       DateTime  @default(now())
   approvalPendingSince DateTime?
@@ -495,23 +495,23 @@ model UpsellRule {
   @@unique([productId, suggestedProductId])
 }
 
-// One row only (id is always 1). Everything a judge might ask us to change
-// live lives here rather than in the code.
+// One row only (id is always 1). Every threshold that might need changing at
+// runtime lives here rather than in the code.
 model Settings {
   id       Int    @id @default(1)
   currency String @default("INR")
 
-  // Deal health thresholds (Phase 8)
+  // Deal health thresholds
   stalledAfterDays            Int   @default(7)
   discountAnomalyThresholdPct Float @default(10)
   minQuotesForRepAverage      Int   @default(5)
   // Penalty weights as JSON text — SQLite has no JSON column type.
   healthWeights String @default("{\"stalledPerDay\":3,\"stalledCap\":30,\"discountAnomaly\":25,\"slippagePerDay\":3,\"slippageCap\":25,\"approvalWaitPerDay\":2,\"approvalWaitCap\":20}")
 
-  // Approval routing (Phase 3)
+  // Approval routing
   financeApprovalOveragePoints Float @default(10)
 
-  // Fulfilment (Phase 4)
+  // Fulfilment
   defaultShippingCost Float @default(250)
 
   updatedAt DateTime @updatedAt

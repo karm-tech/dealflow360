@@ -33,8 +33,8 @@ export function requireAuth(req, res, next) {
 
 // Restricts a route to one or more roles. Always used after requireAuth.
 //
-// Explain to judge: access control is decided here on the server, not by
-// hiding buttons in the browser. Even if someone calls the API directly with
+// Access control is decided here on the server, not by hiding buttons in the
+// browser. Even if someone calls the API directly with
 // a valid login, the role is checked again before anything happens.
 export function requireRole(...allowedRoles) {
   return (req, res, next) => {

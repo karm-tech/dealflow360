@@ -50,8 +50,8 @@ adminRouter.get("/access-requests", async (req, res) => {
 // Approving is what actually creates a usable account: it sets the status to
 // ACTIVE and gives the person a role.
 //
-// Explain to judge: the role comes from what the admin picked, never from what
-// the person asked for on the signup form. That is the whole point — a request
+// The role comes from what the admin picked, never from what the person asked
+// for on the signup form. That is the whole point — a request
 // cannot decide its own permissions.
 adminRouter.post("/access-requests/:id/approve", async (req, res) => {
   const parsed = approveSchema.safeParse(req.body);
@@ -80,7 +80,7 @@ adminRouter.post("/access-requests/:id/approve", async (req, res) => {
     },
   });
 
-  // The audit trail the spec asks for: who did what, to whom, and when.
+  // Audit trail: who did what, to whom, and when.
   await req.db.activityLog.create({
     data: {
       userId: req.user.id,

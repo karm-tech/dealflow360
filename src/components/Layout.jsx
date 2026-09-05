@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, RefreshCw, Settings } from "lucide-react";
 import { useAuth } from "../app/AuthProvider";
-import { DemoBanner, ModeBadge } from "./DemoBanner";
+import { DemoRail, ModeChip } from "./InstanceMarker";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
 import { ROLES, ROLE_LABELS } from "../lib/constants";
@@ -35,8 +35,8 @@ export function Layout() {
 
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
 
-  // "Reload Data" in the problem statement: throw away everything cached and
-  // fetch it again, so the rep can be sure prices and stock are current.
+  // Throw away everything cached and fetch it again, so the rep can be sure
+  // prices and stock are current.
   function reloadData() {
     queryClient.invalidateQueries();
   }
@@ -48,7 +48,7 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <DemoBanner />
+      <DemoRail />
 
       <header className="border-b border-sand-200 bg-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
@@ -88,7 +88,7 @@ export function Layout() {
               <p className="text-xs text-sand-600">{ROLE_LABELS[user.role]}</p>
             </div>
 
-            <ModeBadge />
+            <ModeChip />
 
             <Button
               variant="ghost"

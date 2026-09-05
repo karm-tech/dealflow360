@@ -51,18 +51,18 @@ export function LoginPage() {
       </Card>
 
       {/* Deliberately a visible panel rather than a collapsed link. The live
-          database starts with one admin and no quotations, so a judge who
+          database starts with one admin and no quotations, so someone who
           misses this and signs in to live sees an empty app and assumes it is
-          broken. It stays secondary to the real sign-in — bordered and amber,
-          not the navy primary button. */}
+          broken. It stays secondary to the real sign-in, and uses the demo tone
+          rather than a status colour. */}
       {!isRequest && (
         <Link
           to="/demo"
-          className="group flex items-center gap-3 rounded-xl border border-state-warnBorder bg-state-warnSoft p-4 text-left shadow-card transition-colors hover:bg-state-warnSoft/70"
+          className="group flex items-center gap-3 rounded-xl border border-demo-border bg-demo-soft p-4 text-left shadow-card transition-colors hover:border-demo/40"
         >
-          <FlaskConical className="h-5 w-5 shrink-0 text-state-warn" aria-hidden="true" />
+          <FlaskConical className="h-5 w-5 shrink-0 text-demo" aria-hidden="true" />
           <span className="flex-1">
-            <span className="block text-base font-semibold text-state-warn">
+            <span className="block text-base font-semibold text-demo">
               Explore the demo
             </span>
             <span className="block text-sm text-sand-700">
@@ -70,7 +70,7 @@ export function LoginPage() {
             </span>
           </span>
           <ArrowRight
-            className="h-4 w-4 shrink-0 text-state-warn transition-transform group-hover:translate-x-0.5"
+            className="h-4 w-4 shrink-0 text-demo transition-transform group-hover:translate-x-0.5"
             aria-hidden="true"
           />
         </Link>

@@ -1,13 +1,13 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { useAuth } from "../app/AuthProvider";
-import { DemoBanner, ModeBadge } from "./DemoBanner";
+import { DemoRail, ModeChip } from "./InstanceMarker";
 import { Wordmark } from "./Wordmark";
 import { Button } from "./ui";
 
 // Customers get their own shell, not the internal workspace with the menu
-// hidden. The problem statement asks for a genuinely separate restricted view,
-// so the portal never renders the staff navigation at all.
+// hidden. It is a genuinely separate restricted view, so the portal never
+// renders the staff navigation at all.
 //
 // It also reads differently on purpose — narrower column, no toolbar — so a
 // customer never feels like they are looking at an internal system.
@@ -22,7 +22,7 @@ export function PortalLayout() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <DemoBanner />
+      <DemoRail />
 
       <header className="border-b border-sand-200 bg-surface">
         <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
@@ -37,7 +37,7 @@ export function PortalLayout() {
               <p className="text-xs text-sand-600">{user.email}</p>
             </div>
 
-            <ModeBadge />
+            <ModeChip />
 
             <Button variant="ghost" size="sm" icon={LogOut} onClick={handleLogout}>
               Sign out

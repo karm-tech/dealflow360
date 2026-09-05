@@ -14,8 +14,8 @@ const REQUESTABLE_ROLES = [ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE, 
 // belongs to a customer record, so it is created for them when a quotation is
 // shared.
 //
-// The request is filed in whichever instance the page passes in, so a judge can
-// watch the whole request → approve flow inside the demo.
+// The request is filed in whichever instance the page passes in, so the whole
+// request → approve flow can be tried inside the demo.
 export function RequestAccessForm({ mode, onDone }) {
   const { requestAccess } = useAuth();
   const [formError, setFormError] = useState("");

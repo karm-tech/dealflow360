@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 // Every colour is read from a CSS variable defined in index.css rather than
-// written here as a hex value. That means a dark theme in Phase 9 only has to
+// written here as a hex value. That means a dark theme only has to
 // redefine those variables — no component has to be touched.
 //
 // The variables hold "R G B" channel numbers instead of "#rrggbb" so Tailwind
@@ -62,6 +62,15 @@ export default {
           bad: token("color-state-bad"),
           badSoft: token("color-state-bad-soft"),
           badBorder: token("color-state-bad-border"),
+        },
+
+        // Which database you are in — NOT a status. Kept out of the state scale
+        // on purpose so "you are in the sandbox" can never be misread as
+        // "this deal is at risk".
+        demo: {
+          DEFAULT: token("color-demo"),
+          soft: token("color-demo-soft"),
+          border: token("color-demo-border"),
         },
       },
 

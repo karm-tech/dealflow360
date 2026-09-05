@@ -1,12 +1,12 @@
 import { PageHeader } from "./PageHeader";
 import { Card } from "./ui";
 
-// An honest placeholder for a screen a later phase fills in. It names the phase
-// that owns the screen and lists what will be here, so nothing pretends to work.
+// An honest placeholder for a screen that is not built yet. It names the area
+// it belongs to and lists what will be here, so nothing pretends to work.
 //
-// Styled as a deliberate "planned" state rather than a bare message — a judge
+// Styled as a deliberate "planned" state rather than a bare message — someone
 // clicking through the nav should see a plan, not a broken page.
-export function PhasePlaceholder({ title, phase, description, willInclude = [] }) {
+export function PhasePlaceholder({ title, area, description, willInclude = [] }) {
   return (
     <div className="animate-fadeUp">
       <PageHeader title={title} subtitle={description} />
@@ -16,7 +16,7 @@ export function PhasePlaceholder({ title, phase, description, willInclude = [] }
           <span className="rounded-md bg-ink-700 px-2 py-0.5 text-2xs font-semibold uppercase text-white">
             Planned
           </span>
-          <p className="text-base font-medium text-ink-700">{phase}</p>
+          <p className="text-base font-medium text-ink-700">{area}</p>
         </div>
 
         {willInclude.length > 0 && (

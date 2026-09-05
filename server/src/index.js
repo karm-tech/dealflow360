@@ -18,7 +18,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 
-// Later phases add their routers here:
+// Remaining routers are added here as they are built:
 //   /api/quotations  /api/approvals  /api/fulfilment
 //   /api/billing     /api/portal     /api/dashboard
 //

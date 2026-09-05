@@ -1,4 +1,4 @@
-// Tables that later phases fill with quotations, payslips of stock and money.
+// Tables of quotations, stock and money.
 //
 // Wrap in <Table> so wide content scrolls inside its own box instead of pushing
 // the whole page sideways on a laptop screen.
