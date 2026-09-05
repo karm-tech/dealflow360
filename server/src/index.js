@@ -18,10 +18,6 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 
-// Remaining routers are added here as they are built:
-//   /api/quotations  /api/approvals  /api/fulfilment
-//   /api/billing     /api/portal     /api/dashboard
-//
 // Routes read their database from req.db, never by importing a client.
 // See server/src/routes/README.md.
 
@@ -30,8 +26,7 @@ app.use("/api", (_req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
-// Anything thrown in a route lands here and becomes a tidy JSON response, so
-// the browser never has to deal with a stack trace.
+// Turns anything thrown in a route into a JSON response.
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error(err);

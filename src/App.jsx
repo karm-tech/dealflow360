@@ -22,8 +22,7 @@ import { ROLES } from "./lib/constants";
 
 const STAFF = [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE];
 
-// Sends whoever is logged in to the right home screen. Customers must never
-// land in the internal workspace.
+// Sends each role to its home screen; customers never land in the workspace.
 function HomeRedirect() {
   const { user, isLoading } = useAuth();
 

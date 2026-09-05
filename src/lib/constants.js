@@ -1,5 +1,5 @@
-// Frontend copy of the values the API uses. Kept small on purpose — the server
-// is the source of truth, this is only for labels and styling.
+// Frontend copy of the API's values, for labels and styling only. The server is
+// the source of truth.
 
 export const ROLES = {
   ADMIN: "ADMIN",
@@ -17,8 +17,7 @@ export const ROLE_LABELS = {
   CUSTOMER: "Customer",
 };
 
-// The order demo accounts are listed in on the login screen: most powerful
-// first, customers last because they open a different app entirely.
+// Listing order on the demo page: most powerful first, customers last.
 export const ROLE_ORDER = [
   ROLES.ADMIN,
   ROLES.SALES_MANAGER,
@@ -47,9 +46,8 @@ export const USER_STATUS_LABELS = {
   DISABLED: "Disabled",
 };
 
-// A tone name, not Tailwind classes. StatusPill turns it into colour, so the
-// status palette lives in exactly one place and a screen can never invent its
-// own shade of "approved".
+// A tone name, not Tailwind classes: StatusPill maps it to colour so the status
+// palette lives in one place.
 export const USER_STATUS_TONES = {
   PENDING: "warn",
   ACTIVE: "ok",
@@ -67,8 +65,8 @@ export const QUOTATION_STATUS_LABELS = {
   CANCELLED: "Cancelled",
 };
 
-// "info" means work is under way on our side and nothing is wrong — it uses the
-// navy tint rather than a status colour, so it never reads as a warning.
+// "info" is work in progress, not a warning: it uses the navy tint rather than
+// a status colour.
 export const QUOTATION_STATUS_TONES = {
   DRAFT: "neutral",
   PENDING_APPROVAL: "warn",

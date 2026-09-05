@@ -1,11 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 
-// Every colour is read from a CSS variable defined in index.css rather than
-// written here as a hex value. That means a dark theme only has to
-// redefine those variables — no component has to be touched.
-//
-// The variables hold "R G B" channel numbers instead of "#rrggbb" so Tailwind
-// can still apply opacity, e.g. bg-ink-700/10.
+// Colours are read from CSS variables in index.css, so a dark theme only has to
+// redefine those variables. They hold "R G B" channels rather than hex so
+// Tailwind can still apply opacity, e.g. bg-ink-700/10.
 function token(name) {
   return `rgb(var(--${name}) / <alpha-value>)`;
 }
@@ -20,9 +17,7 @@ export default {
         canvas: token("color-canvas"),
         surface: token("color-surface"),
 
-        // Deep navy. The one accent: primary buttons, active navigation, links.
-        // Deliberately NOT green, amber or red — those belong to status, and a
-        // brand colour that looks like a status colour makes a dashboard lie.
+        // The one accent. Not green, amber or red: those belong to status.
         ink: {
           50: token("color-ink-50"),
           100: token("color-ink-100"),
@@ -35,8 +30,7 @@ export default {
           900: token("color-ink-900"),
         },
 
-        // Warm greys for text, borders and fills. Warm on purpose — a cold
-        // blue-grey next to a navy accent reads as one flat wash.
+        // Warm greys for text, borders and fills.
         sand: {
           50: token("color-sand-50"),
           100: token("color-sand-100"),
@@ -64,9 +58,8 @@ export default {
           badBorder: token("color-state-bad-border"),
         },
 
-        // Which database you are in — NOT a status. Kept out of the state scale
-        // on purpose so "you are in the sandbox" can never be misread as
-        // "this deal is at risk".
+        // Which database the session is in. Kept out of the state scale so it
+        // cannot be misread as a deal status.
         demo: {
           DEFAULT: token("color-demo"),
           soft: token("color-demo-soft"),
@@ -75,16 +68,15 @@ export default {
       },
 
       fontFamily: {
-        // Headings. Geometric, a little characterful, used sparingly.
+        // Headings.
         display: ['Outfit', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        // Everything else. Holds up at 13–14px inside dense tables.
+        // Body and UI; holds up at 13-14px in dense tables.
         sans: ['"IBM Plex Sans"', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        // Money, quote numbers, ids — anything that should line up in a column.
+        // Figures that must line up in a column.
         mono: ['"IBM Plex Mono"', 'Consolas', 'Menlo', 'Courier New', 'monospace'],
       },
 
-      // A fixed scale. Screens pick from these and nothing else, so headings
-      // are the same size on every page.
+      // Fixed scale; screens pick from these and nothing else.
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.06em" }], // 11px label
         xs: ["0.75rem", { lineHeight: "1.125rem" }], // 12px
@@ -96,8 +88,7 @@ export default {
         "3xl": ["2rem", { lineHeight: "2.3rem", letterSpacing: "-0.02em" }], // 32px display
       },
 
-      // Spent by role, not sprinkled everywhere. "card" is the quiet default;
-      // "raised" lifts the one thing that is floating; "modal" is for dialogs.
+      // Spent by role: card is the default, raised floats, modal for dialogs.
       boxShadow: {
         card: "0 1px 2px rgb(26 25 23 / 0.04), 0 1px 3px rgb(26 25 23 / 0.05)",
         raised: "0 4px 12px rgb(26 25 23 / 0.07), 0 1px 3px rgb(26 25 23 / 0.05)",

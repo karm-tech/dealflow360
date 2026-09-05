@@ -9,8 +9,7 @@ import { DB_MODES, USER_STATUS } from "../lib/constants.js";
 
 export const authRouter = Router();
 
-// Validation runs on the server as well as in the form. The browser check is a
-// convenience; this one is the rule.
+// Server-side validation. The form's own checks are a convenience.
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
   password: z.string().min(1, "Enter your password"),
@@ -25,16 +24,13 @@ const signupSchema = z.object({
   mode: z.string().optional(),
 });
 
-// Routes reached with a token use req.db, which requireAuth fills in.
-// The three routes below run BEFORE anyone has a token, so there is no session
-// to trust and they have to work out the instance themselves. That is safe:
-// choosing which instance to sign in to is the caller's decision anyway, and
-// each database holds its own separate list of accounts.
+// The routes below run before a token exists, so they resolve the instance
+// from the request. Each database holds its own separate list of accounts.
 function dbFromRequest(source) {
   return dbForMode(normaliseMode(source?.mode));
 }
 
-// Sent to the browser after login. Note there is no password hash in here.
+// Shape sent to the browser. Excludes the password hash.
 function publicUser(user) {
   return {
     id: user.id,
@@ -45,8 +41,7 @@ function publicUser(user) {
   };
 }
 
-// Every refused login says exactly why, so nobody is left guessing whether they
-// mistyped a password or are simply still waiting on an admin.
+// Shown only after the password check passes.
 const STATUS_MESSAGES = {
   [USER_STATUS.PENDING]: "Your access request is waiting for admin approval.",
   [USER_STATUS.REJECTED]: "Your access request was declined.",
@@ -65,8 +60,8 @@ authRouter.post("/login", async (req, res) => {
 
   const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
 
-  // Same message whether the email is unknown or the password is wrong, so the
-  // response cannot be used to discover which accounts exist.
+  // Same message for unknown email and wrong password, so the response cannot
+  // be used to discover which accounts exist.
   if (!user) {
     return res.status(401).json({ error: "Email or password is incorrect" });
   }
@@ -76,12 +71,12 @@ authRouter.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Email or password is incorrect" });
   }
 
-  // Password is right, so it is safe to explain what is holding the account up.
+  // Password verified, so the account status can safely be explained.
   if (user.status !== USER_STATUS.ACTIVE) {
     return res.status(403).json({ error: STATUS_MESSAGES[user.status] || "This account cannot sign in." });
   }
 
-  // An active account with no role would be an approval that went half way.
+  // An active account with no role means an approval only half applied.
   if (!user.role) {
     return res.status(403).json({ error: "Your account has no role yet. Please contact an admin." });
   }
@@ -89,11 +84,8 @@ authRouter.post("/login", async (req, res) => {
   res.json({ token: signToken(user, mode), user: publicUser(user), mode });
 });
 
-// Signup for internal staff. It does NOT create a working account.
-//
-// Internal signup is supported, but this system governs discount approvals —
-// letting anyone create their own sales account would be a hole. So signing up creates a request with no role and no token, and an admin
-// decides both whether to approve it and which role it gets.
+// Files an access request for internal staff. Creates no role and returns no
+// token; an admin decides both on approval.
 authRouter.post("/signup", async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -117,16 +109,9 @@ authRouter.post("/signup", async (req, res) => {
       passwordHash,
       role: null,
       status: USER_STATUS.PENDING,
-      // Recorded only so the admin can see what the person asked for. It grants
-      // nothing by itself — the admin still picks the role on approval.
+      // Advisory only; the admin picks the role on approval.
       requestedRole: requestedRole || null,
     },
-  });
-
-  // No token is returned. There is nothing to log in to yet.
-  res.status(201).json({
-    status: USER_STATUS.PENDING,
-    message: "Request submitted. An admin will review it and you will be emailed once it is approved.",
   });
 
   queueEmail({
@@ -134,11 +119,15 @@ authRouter.post("/signup", async (req, res) => {
     subject: "DealFlow360 access request received",
     body: `Hi ${name}, your access request has been sent to an admin for review.`,
   });
+
+  res.status(201).json({
+    status: USER_STATUS.PENDING,
+    message: "Request submitted. An admin will review it and you will be emailed once it is approved.",
+  });
 });
 
-// Used by the app on every page load to find out who is logged in. Reading the
-// user fresh from the database means a disabled account stops working straight
-// away instead of lasting until the token expires.
+// Read fresh from the database so a disabled account stops working immediately
+// rather than when the token expires.
 authRouter.get("/me", requireAuth, async (req, res) => {
   const user = await req.db.user.findUnique({ where: { id: req.user.id } });
 
@@ -149,13 +138,8 @@ authRouter.get("/me", requireAuth, async (req, res) => {
   res.json({ user: publicUser(user), mode: req.dbMode });
 });
 
-// Small helper the demo page uses to list its accounts, so anyone trying the
-// app can sign in as any role without being handed a list of addresses.
-//
-// Demo instance only. This route needs no login, and the live database holds
-// real people's addresses — handing those out to anyone who asks would be a
-// leak. Customer logins are included because the portal is part of what there
-// is to try.
+// Accounts listed on the demo sign-in page. Demo instance only: this route
+// needs no login and the live database holds real addresses.
 authRouter.get("/demo-accounts", async (req, res) => {
   const mode = normaliseMode(req.query?.mode);
 

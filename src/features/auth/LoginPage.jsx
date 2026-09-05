@@ -7,11 +7,7 @@ import { RequestAccessForm } from "./RequestAccessForm";
 import { Card } from "../../components/ui";
 import { DB_MODES } from "../../lib/constants";
 
-// The front door. Always signs in to the LIVE instance — there is no
-// demo/live switch here, because a picker on the first screen makes the product
-// look like a developer tool and buries the real thing behind a setting.
-//
-// The demo lives at its own address, /demo.
+// Signs in to the live instance. The demo has its own address, /demo.
 export function LoginPage() {
   const [screen, setScreen] = useState("login");
   const isRequest = screen === "request";
@@ -50,11 +46,8 @@ export function LoginPage() {
         </div>
       </Card>
 
-      {/* Deliberately a visible panel rather than a collapsed link. The live
-          database starts with one admin and no quotations, so someone who
-          misses this and signs in to live sees an empty app and assumes it is
-          broken. It stays secondary to the real sign-in, and uses the demo tone
-          rather than a status colour. */}
+      {/* Visible rather than collapsed: the live database starts empty, so
+          someone who misses this and signs in to live sees nothing. */}
       {!isRequest && (
         <Link
           to="/demo"

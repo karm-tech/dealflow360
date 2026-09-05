@@ -45,9 +45,9 @@ To reload just the demo data, run `npm run seed` again — it clears and rewrite
 
 ## Signing up is a request, not an account
 
-Internal signup is supported, but this system governs discount approvals, so letting anyone create
-their own sales account would be a hole. Signing up creates a **pending
-request with no role and no login token**. An admin opens **Access Requests**, picks the role, and
+Internal signup is supported, but this system governs discount approvals, so self-created sales
+accounts are not allowed. Signing up creates a **pending request with no role and no login
+token**. An admin opens **Access Requests**, picks the role, and
 approves or declines with a reason. The role the admin chooses is what the person gets — what they
 asked for on the form is recorded but grants nothing.
 
@@ -115,8 +115,8 @@ neither. A single order can therefore mix one-time products and subscriptions, a
 stockable lines ever reach a warehouse.
 
 **Routes never import a database client.** They use `req.db`, which the auth middleware sets from
-the `db` claim in the login token. That is the one rule, and it is what
-keeps demo and live apart — every route follows it. See `server/src/routes/README.md`.
+the `db` claim in the login token. That is what keeps demo and live apart. See
+`server/src/routes/README.md`.
 
 ## What is implemented
 

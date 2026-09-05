@@ -1,5 +1,4 @@
-// Money and date helpers used across screens, so formatting is identical
-// everywhere and only has to be fixed in one place.
+// Money and date helpers, so formatting is defined in one place.
 
 export function formatMoney(amount, currency = "INR") {
   return new Intl.NumberFormat("en-IN", {
@@ -18,7 +17,7 @@ export function formatDate(value) {
   });
 }
 
-// "3 days ago" reads better than a date when the point is how long it has been.
+// Relative wording where elapsed time matters more than the date itself.
 export function daysSince(value) {
   if (!value) return null;
   const millisecondsPerDay = 1000 * 60 * 60 * 24;

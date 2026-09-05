@@ -1,17 +1,11 @@
 import { verifyToken } from "../lib/jwt.js";
 import { dbForMode, normaliseMode } from "../lib/prisma.js";
 
-// Blocks the request unless a valid login token was sent.
+// Blocks the request unless a valid login token was sent. On success sets
+// req.user, req.dbMode and req.db.
 //
-// On success:
-//   req.user    { id, email, role, customerId }
-//   req.dbMode  "demo" or "live"
-//   req.db      the Prisma client for that instance
-//
-// The database comes from the signed token and nowhere else. It is deliberately
-// NOT read from a header or a query string: those can be typed by anyone, so a
-// demo session could ask for live data simply by sending ?mode=live. The token
-// is signed, so the only way to change instance is to log in again.
+// The instance comes from the signed token only, never a header or query
+// string, which any caller could set.
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -31,11 +25,8 @@ export function requireAuth(req, res, next) {
   }
 }
 
-// Restricts a route to one or more roles. Always used after requireAuth.
-//
-// Access control is decided here on the server, not by hiding buttons in the
-// browser. Even if someone calls the API directly with
-// a valid login, the role is checked again before anything happens.
+// Restricts a route to one or more roles. Used after requireAuth; hiding
+// controls in the browser is not access control.
 export function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

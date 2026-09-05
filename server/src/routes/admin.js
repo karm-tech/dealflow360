@@ -6,8 +6,7 @@ import { ASSIGNABLE_ROLES, ROLES, USER_STATUS } from "../lib/constants.js";
 
 export const adminRouter = Router();
 
-// Everything in this file is admin-only. Checked on the server, so hiding the
-// menu item in the browser is a convenience, not the protection.
+// Admin-only. Enforced here, not by hiding the menu item.
 adminRouter.use(requireAuth, requireRole(ROLES.ADMIN));
 
 const approveSchema = z.object({
@@ -47,12 +46,8 @@ adminRouter.get("/access-requests", async (req, res) => {
   });
 });
 
-// Approving is what actually creates a usable account: it sets the status to
-// ACTIVE and gives the person a role.
-//
-// The role comes from what the admin picked, never from what the person asked
-// for on the signup form. That is the whole point — a request
-// cannot decide its own permissions.
+// Approval creates the usable account: status ACTIVE plus a role. The role is
+// the admin's choice, never the requestedRole from the signup form.
 adminRouter.post("/access-requests/:id/approve", async (req, res) => {
   const parsed = approveSchema.safeParse(req.body);
   if (!parsed.success) {

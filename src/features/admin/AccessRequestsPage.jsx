@@ -22,9 +22,8 @@ import {
   USER_STATUS_TONES,
 } from "../../lib/constants";
 
-// One card per person waiting on a decision. The role picker starts on what
-// they asked for as a convenience, but the admin can change it to anything —
-// which is the whole point of the screen.
+// The role picker defaults to the requested role for convenience; the admin can
+// change it to anything.
 function RequestCard({ request, assignableRoles, onApprove, onReject, isBusy }) {
   const [role, setRole] = useState(request.requestedRole || assignableRoles[0]);
   const [reason, setReason] = useState("");
@@ -136,7 +135,7 @@ export function AccessRequestsPage() {
     onSuccess: () => {
       setActionError("");
       queryClient.invalidateQueries({ queryKey: ["access-requests"] });
-      // The approved person now shows up as a demo account on the login screen.
+      // An approved person becomes a listed demo account.
       queryClient.invalidateQueries({ queryKey: ["demo-accounts"] });
     },
     onError: (error) => setActionError(errorMessage(error)),

@@ -1,7 +1,4 @@
-// Tables of quotations, stock and money.
-//
-// Wrap in <Table> so wide content scrolls inside its own box instead of pushing
-// the whole page sideways on a laptop screen.
+// Wide content scrolls inside the table's own box rather than the page.
 //
 //   <Table>
 //     <THead><TR><TH>Customer</TH><TH align="right">Amount</TH></TR></THead>
@@ -25,8 +22,7 @@ export function TBody({ children }) {
 
 export function TR({ selected = false, className = "", children, ...rest }) {
   const interactive = rest.onClick ? "cursor-pointer hover:bg-sand-50" : "";
-  // A selected row gets the navy tint, never a heavy fill — the row must still
-  // read as a row.
+  // Selected rows get the navy tint, not a heavy fill.
   const state = selected ? "bg-ink-50" : "";
   return (
     <tr className={`${interactive} ${state} ${className}`} {...rest}>

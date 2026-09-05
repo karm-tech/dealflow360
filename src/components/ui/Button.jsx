@@ -1,13 +1,10 @@
 import { Loader2 } from "lucide-react";
 
-// Four looks, chosen by what the button DOES — not by where it sits:
-//   primary    the one action this screen exists for
-//   secondary  a real alternative, sitting next to a primary
-//   ghost      a minor action, e.g. inside a toolbar or a row
-//   danger     something destructive or a decline
-//
-// Only one primary per screen. If two buttons both feel primary, one of them
-// is secondary.
+// Variant is chosen by what the button does, not where it sits:
+//   primary  the action the screen exists for, one per screen
+//   secondary  a real alternative
+//   ghost      a minor toolbar or row action
+//   danger     destructive, or a decline
 const VARIANTS = {
   primary: "bg-ink-700 text-white hover:bg-ink-800 border border-transparent",
   secondary: "bg-surface text-sand-800 border border-sand-300 hover:bg-sand-50 hover:border-sand-400",
@@ -32,8 +29,7 @@ export function Button({
 }) {
   return (
     <button
-      // Buttons inside a <form> default to submit, which submits by accident.
-      // Callers ask for submit explicitly.
+      // Defaults to button; callers ask for submit explicitly.
       type={rest.type || "button"}
       disabled={disabled || isLoading}
       className={`inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}

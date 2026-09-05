@@ -6,8 +6,7 @@ import { App } from "./App";
 import { AuthProvider } from "./app/AuthProvider";
 import "./index.css";
 
-// React Query holds server data. Turning off refetch-on-focus keeps the demo
-// calm — nothing reloads just because you clicked away to another window.
+// refetchOnWindowFocus off: data should not reload on every window switch.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { refetchOnWindowFocus: false, retry: 1 },

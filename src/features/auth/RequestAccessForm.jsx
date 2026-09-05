@@ -6,16 +6,11 @@ import { errorMessage } from "../../lib/api";
 import { Button, Field, Input, Select } from "../../components/ui";
 import { ROLE_LABELS, ROLES } from "../../lib/constants";
 
-// Roles someone may ask for. What they actually get is decided by the admin who
-// approves them — this field is a note to that admin, nothing more.
+// Roles someone may ask for. Advisory only; the admin picks the real role.
 const REQUESTABLE_ROLES = [ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE, ROLES.ADMIN];
 
-// Internal staff only. Customers never sign themselves up — a portal login
-// belongs to a customer record, so it is created for them when a quotation is
-// shared.
-//
-// The request is filed in whichever instance the page passes in, so the whole
-// request → approve flow can be tried inside the demo.
+// Internal staff only. A customer portal login belongs to a customer record and
+// is created when a quotation is shared, never by self-signup.
 export function RequestAccessForm({ mode, onDone }) {
   const { requestAccess } = useAuth();
   const [formError, setFormError] = useState("");

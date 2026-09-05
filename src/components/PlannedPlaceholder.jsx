@@ -1,12 +1,9 @@
 import { PageHeader } from "./PageHeader";
 import { Card } from "./ui";
 
-// An honest placeholder for a screen that is not built yet. It names the area
-// it belongs to and lists what will be here, so nothing pretends to work.
-//
-// Styled as a deliberate "planned" state rather than a bare message — someone
-// clicking through the nav should see a plan, not a broken page.
-export function PhasePlaceholder({ title, area, description, willInclude = [] }) {
+// Placeholder for a screen that is not built yet. Names its area and lists what
+// it will contain, so nothing pretends to work.
+export function PlannedPlaceholder({ title, area, description, willInclude = [] }) {
   return (
     <div className="animate-fadeUp">
       <PageHeader title={title} subtitle={description} />
@@ -25,8 +22,6 @@ export function PhasePlaceholder({ title, area, description, willInclude = [] })
             <ul className="mt-3 space-y-2">
               {willInclude.map((item) => (
                 <li key={item} className="flex gap-3 text-base text-sand-700">
-                  {/* A small diamond, echoing the mark — quieter than a bullet
-                      and it ties the placeholder to the rest of the app. */}
                   <span className="mt-2 h-1.5 w-1.5 shrink-0 rotate-45 bg-ink-200" aria-hidden="true" />
                   {item}
                 </li>

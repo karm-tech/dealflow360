@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 
-// Wraps one form control with its label, hint and error so every form on every
-// screen lines up the same way. Screens should not hand-write a <label>.
+// Wraps one control with its label, hint and error. Screens should not
+// hand-write a <label>.
 //
 //   <Field label="Email" error={errors.email?.message}>
 //     <Input id="email" {...register("email")} />
@@ -15,8 +15,7 @@ export function Field({ label, htmlFor, hint, error, children }) {
         </label>
       )}
       {children}
-      {/* An error replaces the hint rather than stacking under it — two lines of
-          small grey text under one input is noise. */}
+      {/* An error replaces the hint rather than stacking under it. */}
       {error ? (
         <p className="text-xs text-state-bad">{error}</p>
       ) : (
@@ -26,8 +25,7 @@ export function Field({ label, htmlFor, hint, error, children }) {
   );
 }
 
-// One border and focus treatment shared by every control, so a select never
-// looks slightly different from the input beside it.
+// Shared border and focus treatment across every control.
 const CONTROL =
   "w-full rounded-lg border bg-surface px-3 py-2 text-base text-sand-900 placeholder:text-sand-400 transition-colors focus:outline-none focus:ring-2 disabled:bg-sand-100 disabled:text-sand-500";
 

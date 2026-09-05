@@ -1,6 +1,5 @@
-// The allowed values for every "enum" column in the schema.
-// SQLite has no enum type, so these lists are how we keep the strings honest.
-// The frontend has its own copy in src/lib/constants.js — keep them in step.
+// Allowed values for every "enum" column: SQLite has no enum type.
+// The frontend copy in src/lib/constants.js must stay in step.
 
 export const ROLES = {
   ADMIN: "ADMIN",
@@ -18,9 +17,8 @@ export const INTERNAL_ROLES = [
   ROLES.FINANCE,
 ];
 
-// Roles an admin may hand out when approving an access request. Deliberately
-// the internal list — approving someone into a customer portal login makes no
-// sense, because a portal user belongs to a customer record.
+// Roles an admin may grant on approval. Portal logins are excluded: a customer
+// user belongs to a customer record and is created with it.
 export const ASSIGNABLE_ROLES = INTERNAL_ROLES;
 
 // Where an account stands. Only ACTIVE can log in.
@@ -48,7 +46,7 @@ export const QUOTATION_STATUS = {
   CANCELLED: "CANCELLED",
 };
 
-// Decides how a line is billed. Nothing else does.
+// Set per line; decides how that line is billed.
 export const BILLING_TYPE = {
   ONE_TIME: "ONE_TIME",
   RECURRING: "RECURRING",

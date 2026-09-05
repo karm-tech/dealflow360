@@ -2,12 +2,8 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import { Spinner } from "../components/ui";
 
-// Wraps a route so only logged-in users with an allowed role can open it.
-// Pass no roles to mean "any logged-in user".
-//
-// This is a convenience for the person using the app — it keeps them out of
-// pages they cannot use. The real check is on the server, because a browser
-// guard can always be bypassed.
+// Route guard by role; no roles means any signed-in user. Convenience only —
+// the enforcing check is on the server.
 export function RequireRole({ roles = [], children }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();

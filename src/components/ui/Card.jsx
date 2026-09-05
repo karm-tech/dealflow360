@@ -1,6 +1,4 @@
-// A plain white panel. Border by default and a shadow only when it is genuinely
-// floating above the page — stamping a shadow on every block flattens the
-// hierarchy instead of creating one.
+// Border by default; shadow only when the panel genuinely floats.
 export function Card({ raised = false, padded = true, className = "", children }) {
   return (
     <div

@@ -6,12 +6,8 @@ import { errorMessage } from "../../lib/api";
 import { Button, Field, Input } from "../../components/ui";
 import { ROLES } from "../../lib/constants";
 
-// The email + password form. Used by both pages — the only difference is which
-// instance it signs in to, which the page passes in.
-//
-// The instance is never a control the person picks here: /login signs in to
-// live, /demo signs in to demo. Whichever page you used is stamped into the
-// signed token, so it cannot drift afterwards.
+// Shared by both sign-in pages; the instance is passed in, never picked here.
+// Whichever page was used is stamped into the signed token.
 export function SignInForm({ mode, footer }) {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -56,9 +52,8 @@ export function SignInForm({ mode, footer }) {
       {formError && (
         <div className="rounded-lg border border-state-badBorder bg-state-badSoft px-3 py-2">
           <p className="text-sm text-state-bad">{formError}</p>
-          {/* Shown after any failed sign-in, always the same. We deliberately do
-              NOT check whether the address exists in the demo database — that
-              would tell a stranger which accounts are real. */}
+          {/* Unconditional: checking whether the address exists elsewhere would
+              reveal which accounts are real. */}
           {footer}
         </div>
       )}

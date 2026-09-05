@@ -1,6 +1,4 @@
-// The mark: a diamond split down the middle — two sides of a deal, one darker
-// than the other. Drawn inline so it needs no image file and picks up the theme
-// colours directly.
+// Inline SVG so the mark needs no image file and inherits the theme colours.
 export function Wordmark({ size = "md", className = "" }) {
   const isLarge = size === "lg";
 

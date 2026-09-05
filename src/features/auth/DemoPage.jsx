@@ -12,9 +12,8 @@ import { DB_MODES, ROLE_LABELS, ROLE_ORDER, ROLES } from "../../lib/constants";
 
 const DEMO_PASSWORD = "demo1234";
 
-// The one place the full sentence is spelled out. This is the entrance, so it
-// can afford to be explicit — inside the app the same idea is carried by a 3px
-// rail and a chip, because there it would be shouting on every page forever.
+// The entrance spells out what the demo instance is; inside the app the same
+// idea is carried by the rail and chip.
 function DemoStrip() {
   return (
     <div className="bg-demo">
@@ -30,11 +29,8 @@ function DemoStrip() {
   );
 }
 
-// The demo entrance. Everything here signs in to the demo database.
-//
-// One click on an account signs straight in — someone trying the app should be
-// inside it immediately, not copying an address into a form. The typed form underneath is
-// there for anyone who would rather do it the normal way.
+// Everything here signs in to the demo database. One click on an account signs
+// straight in; the typed form below is the alternative.
 export function DemoPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -142,7 +138,7 @@ export function DemoPage() {
         )}
       </Card>
 
-      {/* Secondary: typing an address still works, for anyone who prefers it. */}
+      {/* Typing an address still works, for anyone who prefers it. */}
       {!isRequest && (
         <Card>
           <p className="text-base font-medium text-sand-900">Or sign in by hand</p>
