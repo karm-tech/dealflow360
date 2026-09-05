@@ -1,8 +1,14 @@
 import "dotenv/config";
+import http from "node:http";
 import express from "express";
 import cors from "cors";
 import { authRouter } from "./routes/auth.js";
 import { adminRouter } from "./routes/admin.js";
+import { quotationsRouter } from "./routes/quotations.js";
+import { catalogueRouter } from "./routes/catalogue.js";
+import { approvalsRouter } from "./routes/approvals.js";
+import { notificationsRouter } from "./routes/notifications.js";
+import { initRealtime } from "./lib/realtime.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -17,6 +23,10 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/quotations", quotationsRouter);
+app.use("/api/catalogue", catalogueRouter);
+app.use("/api/approvals", approvalsRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // Routes read their database from req.db, never by importing a client.
 // See server/src/routes/README.md.
@@ -33,6 +43,10 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || "Something went wrong" });
 });
 
-app.listen(PORT, () => {
+// Express and socket.io share one server so both answer on the same port.
+const server = http.createServer(app);
+initRealtime(server, CLIENT_ORIGIN);
+
+server.listen(PORT, () => {
   console.log(`DealFlow360 API listening on http://localhost:${PORT}`);
 });
