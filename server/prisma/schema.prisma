@@ -52,6 +52,7 @@ model User {
   activityLogs   ActivityLog[]
   portalMessages PortalMessage[]
   notifications  Notification[]
+  portalSettings Settings[]      @relation("PortalSalesRep")
 }
 
 model Tier {
@@ -261,6 +262,13 @@ model Quotation {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // Set when this quotation was raised to renew a subscription rather than won
+  // as new business. renewalPeriodStart is the period it covers, and the pair
+  // is unique so a run cannot raise the same renewal twice.
+  renewsSubscriptionId Int?
+  renewsSubscription   Subscription? @relation("SubscriptionRenewals", fields: [renewsSubscriptionId], references: [id])
+  renewalPeriodStart   DateTime?
+
   lines          QuotationLine[]
   approvalSteps  ApprovalStep[]
   activityLogs   ActivityLog[]
@@ -268,6 +276,8 @@ model Quotation {
   invoices       Invoice[]
   portalMessages PortalMessage[]
   notifications  Notification[]
+
+  @@unique([renewsSubscriptionId, renewalPeriodStart])
 }
 
 model QuotationLine {
@@ -291,6 +301,10 @@ model QuotationLine {
   // a set endDate = fixed term (rental or an AMC).
   startDate DateTime?
   endDate   DateTime?
+
+  // How many days before a period starts its renewal quotation is raised.
+  // Must be shorter than the period itself, so one renewal is open at a time.
+  renewalLeadDays Int?
 
   fulfilmentLines FulfilmentLine[]
   subscription    Subscription?
@@ -403,7 +417,12 @@ model Subscription {
   cancelledAt DateTime?
   createdAt   DateTime  @default(now())
 
+  // Carried over from the line so the subscription keeps its own renewal
+  // notice period after the order that created it is history.
+  renewalLeadDays Int?
+
   schedules BillingSchedule[]
+  renewals  Quotation[] @relation("SubscriptionRenewals")
 }
 
 model BillingSchedule {
@@ -541,6 +560,39 @@ model Settings {
   // rep into a product that damages the deal.
   minUpsellMarginPct Float @default(20)
 
+  // Who picks up quotations requested from the portal. A self-service request
+  // arrives with no rep attached, and an unowned deal is one nobody chases.
+  portalSalesRepId Int?
+  portalSalesRep   User? @relation("PortalSalesRep", fields: [portalSalesRepId], references: [id])
+
+  // The tier a self-registered customer starts on, before anyone reviews them.
+  portalDefaultTierId String @default("BRONZE")
+
+  // Company identity, printed on every document we hand out. Held here rather
+  // than in the code so the same build can be run by a different company.
+  companyName    String  @default("DealFlow360")
+  companyAddress String?
+  companyGstin   String?
+  companyPhone   String?
+  companyEmail   String?
+  companyWebsite String?
+  // Small print along the bottom of a document — terms, bank details.
+  documentFooter String?
+  // Uploaded file, served from /uploads. Used in the document header and, faint
+  // and oversized, as the watermark.
+  logoPath String?
+
+  // Outgoing mail. When no host is set, mail stays in the outbox instead of
+  // being sent, so the app works with no mail server at all.
+  smtpHost     String?
+  smtpPort     Int     @default(587)
+  smtpSecure   Boolean @default(false)
+  smtpUser     String?
+  // Write-only: it is set through the settings screen but never read back out
+  // to the browser. A real deployment would keep this in a secret store.
+  smtpPassword String?
+  smtpFrom     String?
+
   updatedAt DateTime @updatedAt
 }
 
@@ -578,6 +630,10 @@ model EmailMessage {
   // QUEUED | SENT | FAILED. Stays QUEUED while no SMTP host is configured.
   status String  @default("QUEUED")
   error  String?
+
+  // Named rather than stored: the file is rebuilt from the record when the
+  // mail is sent, so a document can never go out of date in a queue.
+  attachmentName String?
 
   quotationId Int?
   sentAt      DateTime?

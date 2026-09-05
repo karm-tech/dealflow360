@@ -10,6 +10,9 @@ server/prisma/dev.db*
 .DS_Store
 *.log
 
+# uploaded files belong to the installation, not the source
+server/uploads/
+
 # local working notes - never commit
 CLAUDE.md
 PLAN.md

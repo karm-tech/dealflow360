@@ -82,6 +82,7 @@ export const QUOTATION_STATUS_LABELS = {
   UNDER_NEGOTIATION: "Under Negotiation",
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
+  REJECTED: "Rejected by customer",
 };
 
 // "info" is work in progress, not a warning: it uses the navy tint rather than
@@ -95,6 +96,7 @@ export const QUOTATION_STATUS_TONES = {
   UNDER_NEGOTIATION: "warn",
   CONFIRMED: "ok",
   CANCELLED: "bad",
+  REJECTED: "bad",
 };
 
 // The path a deal normally takes, shown as a status bar on the quotation.
@@ -110,6 +112,7 @@ export const QUOTATION_STAGES = [
 // Columns on the pipeline board.
 export const PIPELINE_STAGES = [
   "DRAFT",
+  "RETURNED",
   "PENDING_APPROVAL",
   "APPROVED",
   "SENT",
@@ -120,6 +123,7 @@ export const PIPELINE_STAGES = [
 // Deals still in play. Cancelled ones are dead history and are counted nowhere.
 export const OPEN_QUOTATION_STATUSES = [
   "DRAFT",
+  "RETURNED",
   "PENDING_APPROVAL",
   "APPROVED",
   "SENT",

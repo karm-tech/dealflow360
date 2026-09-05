@@ -52,6 +52,9 @@ export const QUOTATION_STATUS = {
   UNDER_NEGOTIATION: "UNDER_NEGOTIATION",
   CONFIRMED: "CONFIRMED",
   CANCELLED: "CANCELLED",
+  // Turned down by the customer, as opposed to cancelled internally. Kept apart
+  // so a lost deal reads as the customer's decision and carries their reason.
+  REJECTED: "REJECTED",
 };
 
 // Set per line; decides how that line is billed.
