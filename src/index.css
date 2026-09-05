@@ -1,0 +1,124 @@
+/* Fonts are served from public/fonts, never from a CDN. The Odoo guidelines
+   say to plan for working offline, so a venue with no internet must not be able
+   to change how the app looks halfway through a demo.
+
+   Outfit and IBM Plex Sans are variable fonts: one file covers the whole weight
+   range, which is why they declare a range instead of a single weight. */
+@font-face {
+  font-family: "Outfit";
+  src: url("/fonts/outfit-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/plex-sans-var.woff2") format("woff2");
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/plex-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/plex-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The whole palette lives here as "R G B" channel numbers. Tailwind reads these
+   (see tailwind.config.js), so adding a dark theme later means redefining this
+   block under .dark and changing nothing else. */
+@layer base {
+  :root {
+    /* Page ground and cards. Warm off-white, not a cold blue-grey. */
+    --color-canvas: 247 246 244;
+    --color-surface: 255 255 255;
+
+    /* Deep navy — the single accent. */
+    --color-ink-50: 237 242 247;
+    --color-ink-100: 216 227 238;
+    --color-ink-200: 185 203 221;
+    --color-ink-400: 92 124 158;
+    --color-ink-500: 53 89 125;
+    --color-ink-600: 34 69 106;
+    --color-ink-700: 27 58 92;
+    --color-ink-800: 18 40 63;
+    --color-ink-900: 12 29 46;
+
+    /* Warm greys — text, borders, quiet fills. */
+    --color-sand-50: 250 249 247;
+    --color-sand-100: 242 240 236;
+    --color-sand-200: 228 225 220;
+    --color-sand-300: 211 207 200;
+    --color-sand-400: 176 170 161;
+    --color-sand-500: 138 132 121;
+    --color-sand-600: 107 104 98;
+    --color-sand-700: 78 75 70;
+    --color-sand-800: 51 47 43;
+    --color-sand-900: 26 25 23;
+
+    /* Status. Darkened from the usual bright versions so the text on a soft
+       fill actually passes contrast — a pale green on pale green is unreadable
+       for a lot of people. */
+    --color-state-ok: 10 107 74;
+    --color-state-ok-soft: 227 245 238;
+    --color-state-ok-border: 168 220 198;
+    --color-state-warn: 138 82 0;
+    --color-state-warn-soft: 253 241 221;
+    --color-state-warn-border: 237 203 146;
+    --color-state-bad: 153 32 24;
+    --color-state-bad-soft: 251 233 231;
+    --color-state-bad-border: 239 179 172;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-base text-sand-900 antialiased;
+  }
+
+  /* Headings use the display face everywhere, so no screen has to remember. */
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    text-wrap: balance;
+  }
+
+  /* Keyboard users need to see where they are. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink-400 ring-offset-2 ring-offset-canvas;
+  }
+}
+
+@layer utilities {
+  /* Any column of figures — money, quantities, scores — so digits line up.
+     Without this a table of amounts looks ragged. */
+  .figure {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
