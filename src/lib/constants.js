@@ -117,6 +117,24 @@ export const PIPELINE_STAGES = [
   "CONFIRMED",
 ];
 
+export const FULFILMENT_STATUS_LABELS = {
+  SUGGESTED: "Suggested",
+  ACCEPTED: "Allocated",
+  BACKORDER: "On backorder",
+  SHIPPED: "Shipped",
+  DELIVERED: "Delivered",
+  RETURNED: "Returned",
+};
+
+export const FULFILMENT_STATUS_TONES = {
+  SUGGESTED: "info",
+  ACCEPTED: "ok",
+  BACKORDER: "warn",
+  SHIPPED: "info",
+  DELIVERED: "ok",
+  RETURNED: "neutral",
+};
+
 export const BILLING_TYPE = {
   ONE_TIME: "ONE_TIME",
   RECURRING: "RECURRING",

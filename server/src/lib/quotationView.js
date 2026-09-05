@@ -24,7 +24,7 @@ function isInternal(role) {
 }
 
 export function quotationSummary(quotation) {
-  const totals = quotationTotals(quotation.lines, quotation.orderDiscountPct);
+  const totals = quotationTotals(quotation.lines);
 
   return {
     id: quotation.id,
@@ -40,7 +40,7 @@ export function quotationSummary(quotation) {
     riskScore: quotation.riskScore,
     annualContractValue: totals.annualContractValue,
     grandTotal: totals.grandTotal,
-    promisedDeliveryDate: quotation.promisedDeliveryDate,
+    requestedDeliveryDate: quotation.requestedDeliveryDate,
     lastActivityAt: quotation.lastActivityAt,
     createdAt: quotation.createdAt,
   };
@@ -57,8 +57,6 @@ function lineView(line, figures) {
     qty: line.qty,
     unitPrice: line.unitPrice,
     discountPct: line.discountPct,
-    // Line plus order discount: the figure governance reads.
-    effectiveDiscountPct: figures.discountPct,
     billingType: line.billingType,
     planId: line.planId,
     planName: line.plan ? line.plan.name : null,
@@ -74,7 +72,7 @@ function lineView(line, figures) {
 }
 
 export function quotationDetail(quotation, { role, activityLogs = [], suggestions = [], routing = null } = {}) {
-  const totals = quotationTotals(quotation.lines, quotation.orderDiscountPct);
+  const totals = quotationTotals(quotation.lines);
   const internal = isInternal(role);
 
   const view = {
@@ -86,13 +84,15 @@ export function quotationDetail(quotation, { role, activityLogs = [], suggestion
       id: quotation.customer.id,
       name: quotation.customer.name,
       email: quotation.customer.email,
+      phone: quotation.customer.phone,
+      city: quotation.customer.city,
       tierId: quotation.customer.tierId,
       tier: quotation.customer.tier.name,
       maxDiscountPct: quotation.customer.tier.maxDiscountPct,
     },
     rep: quotation.rep ? { id: quotation.rep.id, name: quotation.rep.name } : null,
-    promisedDeliveryDate: quotation.promisedDeliveryDate,
-    orderDiscountPct: quotation.orderDiscountPct,
+    inquiryDate: quotation.inquiryDate,
+    requestedDeliveryDate: quotation.requestedDeliveryDate,
     notes: quotation.notes,
     confirmedAt: quotation.confirmedAt,
     createdAt: quotation.createdAt,

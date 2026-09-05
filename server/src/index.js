@@ -8,6 +8,7 @@ import { quotationsRouter } from "./routes/quotations.js";
 import { catalogueRouter } from "./routes/catalogue.js";
 import { approvalsRouter } from "./routes/approvals.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { fulfilmentRouter } from "./routes/fulfilment.js";
 import { initRealtime } from "./lib/realtime.js";
 
 const app = express();
@@ -27,6 +28,7 @@ app.use("/api/quotations", quotationsRouter);
 app.use("/api/catalogue", catalogueRouter);
 app.use("/api/approvals", approvalsRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/fulfilment", fulfilmentRouter);
 
 // Routes read their database from req.db, never by importing a client.
 // See server/src/routes/README.md.

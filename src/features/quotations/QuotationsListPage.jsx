@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader";
@@ -11,6 +11,7 @@ import {
   Field,
   Input,
   Modal,
+  RecordPicker,
   Select,
   Spinner,
   StatusPill,
@@ -22,6 +23,7 @@ import {
   TR,
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
+import { searchCustomers } from "../../lib/pickers";
 import { formatDate, formatMoney } from "../../lib/format";
 import {
   PIPELINE_STAGES,
@@ -29,26 +31,30 @@ import {
   QUOTATION_STATUS_TONES,
 } from "../../lib/constants";
 
-const SORTS = {
-  newest: { label: "Newest first", compare: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
-  value: { label: "Highest value", compare: (a, b) => b.annualContractValue - a.annualContractValue },
-  customer: { label: "Customer name", compare: (a, b) => a.customer.name.localeCompare(b.customer.name) },
+// Ordering happens on the server so the record pager steps through the same
+// sequence the table is showing.
+const SORT_LABELS = {
+  newest: "Newest first",
+  oldest: "Oldest first",
+  value: "Highest value",
+  customer: "Customer name",
 };
 
 function NewQuotationDialog({ open, onClose }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [customerId, setCustomerId] = useState("");
+  const [customer, setCustomer] = useState(null);
   const [error, setError] = useState("");
 
-  const customers = useQuery({
-    queryKey: ["customers"],
-    enabled: open,
-    queryFn: async () => (await api.get("/catalogue/customers")).data.customers,
-  });
+  useEffect(() => {
+    if (open) {
+      setCustomer(null);
+      setError("");
+    }
+  }, [open]);
 
   const create = useMutation({
-    mutationFn: () => api.post("/quotations", { customerId: Number(customerId) }),
+    mutationFn: () => api.post("/quotations", { customerId: customer.id }),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] });
       onClose();
@@ -68,29 +74,28 @@ function NewQuotationDialog({ open, onClose }) {
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            isLoading={create.isPending}
-            disabled={!customerId}
-            onClick={() => create.mutate()}
-          >
+          <Button isLoading={create.isPending} disabled={!customer} onClick={() => create.mutate()}>
             Create draft
           </Button>
         </>
       }
     >
-      <Field label="Customer" htmlFor="customer" error={error}>
-        <Select
+      <Field
+        label="Customer"
+        htmlFor="customer"
+        error={error}
+        hint={customer ? `${customer.record.tier} · up to ${customer.record.maxDiscountPct}% discount` : undefined}
+      >
+        <RecordPicker
           id="customer"
-          value={customerId}
-          onChange={(event) => setCustomerId(event.target.value)}
-        >
-          <option value="">Choose a customer…</option>
-          {(customers.data || []).map((customer) => (
-            <option key={customer.id} value={customer.id}>
-              {customer.name} — {customer.tier} (up to {customer.maxDiscountPct}%)
-            </option>
-          ))}
-        </Select>
+          queryKey="customers"
+          fetchOptions={searchCustomers}
+          value={customer?.id}
+          selected={customer}
+          onChange={setCustomer}
+          noun="customers"
+          placeholder="Search by name or email…"
+        />
       </Field>
     </Modal>
   );
@@ -98,16 +103,27 @@ function NewQuotationDialog({ open, onClose }) {
 
 export function QuotationsListPage() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("newest");
   const [isCreating, setIsCreating] = useState(false);
 
+  // Filters live in the address bar so a link reproduces the same list, and so
+  // the record pager can be handed the query the rows came from.
+  const [params, setParams] = useSearchParams();
+  const status = params.get("status") || "";
+  const search = params.get("search") || "";
+  const sort = params.get("sort") || "newest";
+
+  function setParam(key, value) {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  }
+
+  const listQuery = { status: status || undefined, search: search || undefined, sort };
+
   const quotations = useQuery({
-    queryKey: ["quotations", status, search],
-    queryFn: async () =>
-      (await api.get("/quotations", { params: { status: status || undefined, search: search || undefined } }))
-        .data.quotations,
+    queryKey: ["quotations", status, search, sort],
+    queryFn: async () => (await api.get("/quotations", { params: listQuery })).data.quotations,
   });
 
   if (quotations.isLoading) return <Spinner label="Loading quotations" />;
@@ -115,7 +131,9 @@ export function QuotationsListPage() {
     return <ErrorState message={errorMessage(quotations.error)} onRetry={quotations.refetch} />;
   }
 
-  const rows = [...quotations.data].sort(SORTS[sort].compare);
+  const rows = quotations.data;
+  // Carried onto the record so its pager walks this list rather than all of it.
+  const listParams = params.toString();
 
   return (
     <div className="animate-fadeUp">
@@ -140,7 +158,7 @@ export function QuotationsListPage() {
               id="search"
               value={search}
               placeholder="Number or customer"
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => setParam("search", event.target.value)}
               className="!w-64 !pl-9"
             />
           </div>
@@ -150,7 +168,7 @@ export function QuotationsListPage() {
           <Select
             id="status"
             value={status}
-            onChange={(event) => setStatus(event.target.value)}
+            onChange={(event) => setParam("status", event.target.value)}
             className="!w-48"
           >
             <option value="">All stages</option>
@@ -163,10 +181,15 @@ export function QuotationsListPage() {
         </Field>
 
         <Field label="Sort by" htmlFor="sort">
-          <Select id="sort" value={sort} onChange={(event) => setSort(event.target.value)} className="!w-44">
-            {Object.entries(SORTS).map(([value, option]) => (
+          <Select
+            id="sort"
+            value={sort}
+            onChange={(event) => setParam("sort", event.target.value)}
+            className="!w-44"
+          >
+            {Object.entries(SORT_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
-                {option.label}
+                {label}
               </option>
             ))}
           </Select>
@@ -198,7 +221,12 @@ export function QuotationsListPage() {
           </THead>
           <TBody>
             {rows.map((row) => (
-              <TR key={row.id} onClick={() => navigate(`/quotations/${row.id}`)}>
+              <TR
+                key={row.id}
+                onClick={() =>
+                  navigate(`/quotations/${row.id}${listParams ? `?${listParams}` : ""}`)
+                }
+              >
                 <TD className="font-medium text-ink-700">{row.number}</TD>
                 <TD>
                   <span className="flex flex-wrap items-center gap-2">

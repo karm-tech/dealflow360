@@ -96,7 +96,8 @@ thing rather than another shade of warning.
 Live mode gets a plain greyscale chip, not green — green is `state.ok` and
 would say "this is healthy" rather than "this is the real database".
 
-`StatusPill` also has two non-health tones: `neutral` (a status carrying no
+Toast is the one other place a state colour appears, limited to its rail and
+icon. `StatusPill` also has two non-health tones: `neutral` (a status carrying no
 judgement, e.g. Draft) and `info` (work under way on our side, e.g. Sent) which
 uses the navy tint so it never reads as a warning.
 
@@ -196,7 +197,9 @@ One import: `import { Button, Card, Field, Input } from "../../components/ui";`
 | `Card` / `CardHeader` | a panel. `raised` only when it genuinely floats; `padded={false}` when the content manages its own edges. |
 | `Table` `THead` `TBody` `TR` `TH` `TD` | wide content scrolls inside its own box so the page never scrolls sideways. `<TD figure align="right">` for money. `<TR selected>` gets the navy tint. |
 | `Badge` | a neutral label — a tier, a role, a count. **No meaning attached.** |
-| `StatusPill` | something is fine / needs attention / is wrong. The only component allowed to use the state colours. |
+| `StatusPill` | something is fine / needs attention / is wrong. The component that uses the state colours as a fill. |
+| `Toast` | confirms the action you just took. May use a state colour, but only on the left rail and the icon — the surface stays neutral so it never becomes the loudest thing on screen. Not the notification bell: a toast is your own action and fades, the bell is something involving you and stays. |
+| `RecordPicker` | picks one related record by typing. Searches on the server, so it replaces a `<select>` wherever the list can grow. |
 | `Spinner` `ErrorState` `EmptyState` | the three things a screen can be doing other than showing data. `ErrorState` always says what to do next; `EmptyState`'s hint should say how the first row gets here. |
 | `Modal` | confirmations and small forms. Escape closes it and background scroll is locked. |
 

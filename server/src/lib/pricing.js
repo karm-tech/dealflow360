@@ -29,11 +29,11 @@ export function resolveUnitPrice(product, priceListItems) {
   return product.salesPrice;
 }
 
-// Line and order discounts add up. Governance checks this combined figure, so
-// splitting a discount across the two levels cannot slip under a ceiling.
-export function effectiveDiscountPct(lineDiscountPct, orderDiscountPct) {
-  const combined = (lineDiscountPct || 0) + (orderDiscountPct || 0);
-  return Math.min(100, Math.max(0, combined));
+// A line carries one discount. A blanket discount is applied by writing it to
+// every line, so nothing is added on afterwards and the figure on the line is
+// what is charged.
+export function lineDiscountPct(line) {
+  return Math.min(100, Math.max(0, line.discountPct || 0));
 }
 
 // The period a recurring line's start date falls inside, anchored to the
@@ -79,12 +79,12 @@ export function prorateFirstPeriod(periodAmount, startDate, months) {
 
 // Everything a single line contributes. `product` and `plan` come from the
 // line's relations.
-export function lineFigures(line, orderDiscountPct) {
+export function lineFigures(line) {
   const product = line.product;
   const isRecurring = line.billingType === BILLING_TYPE.RECURRING;
   const months = isRecurring ? monthsInPeriod(line.plan) : 1;
 
-  const discountPct = effectiveDiscountPct(line.discountPct, orderDiscountPct);
+  const discountPct = lineDiscountPct(line);
   const gross = line.qty * line.unitPrice;
   const net = gross * (1 - discountPct / 100);
   const cost = line.qty * product.cost;
@@ -126,8 +126,8 @@ export function lineFigures(line, orderDiscountPct) {
 // A mixed order has no single total, so each figure is reported separately.
 // Margin runs on the annual contract value: a discount buried on a
 // subscription line barely moves a first invoice, but it shows up over a year.
-export function quotationTotals(lines, orderDiscountPct) {
-  const figures = lines.map((line) => lineFigures(line, orderDiscountPct));
+export function quotationTotals(lines) {
+  const figures = lines.map((line) => lineFigures(line));
 
   let oneTimeNet = 0;
   let recurringMonthlyNet = 0;

@@ -6,7 +6,7 @@
 //   </Table>
 export function Table({ className = "", children }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-sand-200 bg-surface shadow-card">
+    <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-sand-200 bg-surface shadow-card">
       <table className={`w-full border-collapse text-base ${className}`}>{children}</table>
     </div>
   );

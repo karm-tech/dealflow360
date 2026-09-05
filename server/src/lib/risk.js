@@ -15,7 +15,7 @@ export function lineCeilingPct(tierMaxPct, categoryCeilingPct) {
 // Overages are added up, not averaged. Several lines a little over give away
 // margin the same way one line far over does, and an average would hide both.
 export function scoreQuotation(quotation) {
-  const totals = quotationTotals(quotation.lines, quotation.orderDiscountPct);
+  const totals = quotationTotals(quotation.lines);
   const tierMaxPct = quotation.customer.tier.maxDiscountPct;
 
   const lines = quotation.lines.map((line, index) => {

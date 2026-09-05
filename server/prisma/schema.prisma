@@ -195,7 +195,9 @@ model Warehouse {
   // Relative cost of shipping from here. The split prefers cheaper warehouses
   // and fewer shipments.
   shippingWeight Float   @default(1)
-  isActive       Boolean @default(true)
+  // Days from dispatch to arrival, used to work out the delivery estimate.
+  leadTimeDays Int     @default(2)
+  isActive     Boolean @default(true)
 
   stocks      Stock[]
   fulfilments Fulfilment[]
@@ -209,6 +211,8 @@ model Stock {
   product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   qty          Int       @default(0)
   reorderLevel Int       @default(0)
+  // How long a restock takes here. Sets the expected date on a backorder.
+  replenishmentDays Int @default(14)
 
   @@unique([warehouseId, productId])
 }
@@ -231,7 +235,12 @@ model Quotation {
   status       String  @default("DRAFT")
   cancelReason String?
 
-  promisedDeliveryDate  DateTime?
+  // When the customer asked, which is not when the rep wrote the quotation up.
+  inquiryDate DateTime?
+
+  // The date the customer asked for. A draft cannot promise anything, so
+  // slippage is measured against what was requested.
+  requestedDeliveryDate DateTime?
   estimatedDeliveryDate DateTime?
 
   // Blended discount risk, recalculated whenever lines change.
@@ -242,9 +251,6 @@ model Quotation {
   // activity log, so "stalled" is measured from real events, never a flag.
   lastActivityAt       DateTime  @default(now())
   approvalPendingSince DateTime?
-
-  // Discount applied to the whole order, on top of any line discount.
-  orderDiscountPct Float @default(0)
 
   // Product ids the rep dismissed from the suggestion panel, comma separated.
   // Stored so a rejected suggestion does not come back when the quote reopens.
@@ -533,7 +539,8 @@ model Notification {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // APPROVAL_REQUESTED | APPROVAL_ESCALATED | QUOTATION_APPROVED |
-  // QUOTATION_REJECTED | QUOTATION_RETURNED | QUOTATION_ACCEPTED
+  // QUOTATION_REJECTED | QUOTATION_RETURNED | QUOTATION_ACCEPTED |
+  // BACKORDER_RAISED | BACKORDER_CONSOLIDATED
   type  String
   title String
   body  String?

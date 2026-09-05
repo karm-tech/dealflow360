@@ -1,22 +1,7 @@
+import { Link } from "react-router-dom";
 import { PlannedPlaceholder } from "../../components/PlannedPlaceholder";
 
 // Every screen has a route; unbuilt ones say what they will contain.
-
-export function FulfilmentPage() {
-  return (
-    <PlannedPlaceholder
-      title="Fulfilment"
-      area="Fulfilment"
-      description="Where each order ships from."
-      willInclude={[
-        "Suggested warehouse split based on live stock",
-        "Quantity, shipment count and cost per warehouse",
-        "Accept the suggestion or override it by hand",
-        "Backorders, and a prompt to consolidate when stock arrives",
-      ]}
-    />
-  );
-}
 
 export function BillingPage() {
   return (
@@ -50,21 +35,43 @@ export function DashboardPage() {
   );
 }
 
+// Admin screens live behind Configuration rather than in the main navigation,
+// which keeps the workspace tabs to the six a rep actually works in.
+const CONFIG_LINKS = [
+  { to: "/access-requests", label: "Access requests", hint: "Approve who can sign in, and set their role" },
+  { to: "/outbox", label: "Email outbox", hint: "Every message the system has queued" },
+];
+
 export function BackendPage() {
   return (
-    <PlannedPlaceholder
-      title="Back-end configuration"
-      area="Admin config"
-      description="Everything the rules read from, editable here."
-      willInclude={[
-        "Products, variants and price lists",
-        "Discount ceilings per customer tier and per category",
-        "Approval chain rules",
-        "Warehouses, stock levels and shipping weights",
-        "Recurring plans and proration rules",
-        "Settings: stall threshold, anomaly threshold, health weights",
-      ]}
-    />
+    <div className="animate-fadeUp">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        {CONFIG_LINKS.map((link) => (
+          <Link
+            key={link.to}
+            to={link.to}
+            className="rounded-xl border border-sand-200 bg-surface p-4 shadow-card transition-colors hover:border-ink-200"
+          >
+            <p className="text-base font-medium text-ink-700">{link.label}</p>
+            <p className="mt-0.5 text-sm text-sand-600">{link.hint}</p>
+          </Link>
+        ))}
+      </div>
+
+      <PlannedPlaceholder
+        title="Configuration"
+        area="Admin config"
+        description="Everything the rules read from, editable here."
+        willInclude={[
+          "Products, variants and price lists",
+          "Discount ceilings per customer tier and per category",
+          "Approval chain rules",
+          "Warehouses, stock levels and shipping weights",
+          "Recurring plans and proration rules",
+          "Settings: stall threshold, anomaly threshold, health weights",
+        ]}
+      />
+    </div>
   );
 }
 

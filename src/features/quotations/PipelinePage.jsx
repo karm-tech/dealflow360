@@ -72,7 +72,7 @@ export function PipelinePage() {
         subtitle="Deals by stage. A card moves when the workflow moves it, so stages cannot be dragged."
       />
 
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-3">
         {PIPELINE_STAGES.map((stage) => (
           <Column
             key={stage}

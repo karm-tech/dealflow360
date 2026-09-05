@@ -14,13 +14,27 @@ function marginPct(price, cost) {
   return Math.round(((price - cost) / price) * 1000) / 10;
 }
 
+// Search and limit are applied in the query rather than after it, so a picker
+// never pulls the whole catalogue across to filter in the browser.
+function searchLimit(value, fallback = 20) {
+  const limit = Number(value);
+  return Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : fallback;
+}
+
 catalogueRouter.get("/products", async (req, res) => {
   const tierId = req.query.tierId ? String(req.query.tierId) : null;
+  const search = req.query.q ? String(req.query.q).trim() : "";
 
   const products = await req.db.product.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(search
+        ? { OR: [{ name: { contains: search } }, { sku: { contains: search } }] }
+        : {}),
+    },
     include: { category: true, priceListItems: { include: { priceList: true } }, defaultPlan: true },
     orderBy: [{ categoryId: "asc" }, { name: "asc" }],
+    ...(req.query.limit ? { take: searchLimit(req.query.limit) } : {}),
   });
 
   res.json({
@@ -104,10 +118,18 @@ catalogueRouter.get("/products/:id", async (req, res) => {
 });
 
 catalogueRouter.get("/customers", async (req, res) => {
+  const search = req.query.q ? String(req.query.q).trim() : "";
+
   const customers = await req.db.customer.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(search
+        ? { OR: [{ name: { contains: search } }, { email: { contains: search } }] }
+        : {}),
+    },
     include: { tier: true },
     orderBy: { name: "asc" },
+    ...(req.query.limit ? { take: searchLimit(req.query.limit) } : {}),
   });
 
   res.json({
@@ -115,6 +137,7 @@ catalogueRouter.get("/customers", async (req, res) => {
       id: customer.id,
       name: customer.name,
       email: customer.email,
+      phone: customer.phone,
       city: customer.city,
       tierId: customer.tierId,
       tier: customer.tier.name,

@@ -1,8 +1,14 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 // Dialog for confirmations and small forms. Escape closes it and background
 // scroll is locked while open.
+//
+// Rendered into document.body: a fixed-position child is measured against the
+// nearest transformed ancestor rather than the viewport, and the page entry
+// animation leaves a transform in place, which would push the dialog below the
+// fold on a long page.
 export function Modal({ open, onClose, title, description, footer, children }) {
   useEffect(() => {
     if (!open) return undefined;
@@ -23,7 +29,7 @@ export function Modal({ open, onClose, title, description, footer, children }) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Clicking the backdrop closes the dialog. */}
       <button
@@ -37,7 +43,7 @@ export function Modal({ open, onClose, title, description, footer, children }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-lg rounded-2xl border border-sand-200 bg-surface p-6 shadow-modal animate-expand"
+        className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-2xl border border-sand-200 bg-surface p-6 shadow-modal animate-expand"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -54,10 +60,12 @@ export function Modal({ open, onClose, title, description, footer, children }) {
           </button>
         </div>
 
-        <div className="mt-4">{children}</div>
+        {/* min-h-0 lets this shrink inside the flex column so it can scroll. */}
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto">{children}</div>
 
         {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

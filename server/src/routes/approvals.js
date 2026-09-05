@@ -7,6 +7,7 @@ import { canActOnStep, countApprovers, currentStep } from "../lib/approvals.js";
 import { QUOTATION_INCLUDE, quotationSummary } from "../lib/quotationView.js";
 import { notify, usersInRole, NOTIFICATION_TYPES } from "../lib/notify.js";
 import { scoreQuotation } from "../lib/risk.js";
+import { suggestFulfilment } from "../lib/fulfilmentService.js";
 
 export const approvalsRouter = Router();
 
@@ -27,17 +28,21 @@ async function loadWithSteps(db, id) {
 
 // Waiting on this person: the live step must match their role, and they cannot
 // act on a deal they raised themselves.
-approvalsRouter.get("/", async (req, res) => {
+async function actionableFor(req) {
   const quotations = await req.db.quotation.findMany({
     where: { status: QUOTATION_STATUS.PENDING_APPROVAL },
     include: QUOTATION_INCLUDE,
     orderBy: { approvalPendingSince: "asc" },
   });
 
-  const mine = quotations.filter((quotation) => {
+  return quotations.filter((quotation) => {
     const step = currentStep(quotation.approvalSteps);
     return canActOnStep(step, quotation, req.user);
   });
+}
+
+approvalsRouter.get("/", async (req, res) => {
+  const mine = await actionableFor(req);
 
   res.json({
     quotations: mine.map((quotation) => {
@@ -53,6 +58,24 @@ approvalsRouter.get("/", async (req, res) => {
         waitingSince: quotation.approvalPendingSince,
       };
     }),
+  });
+});
+
+// A quotation opened from this queue pages through the queue, not through every
+// quotation in the system.
+approvalsRouter.get("/:id/neighbours", async (req, res) => {
+  const rows = await actionableFor(req);
+  const index = rows.findIndex((row) => row.id === Number(req.params.id));
+
+  if (index === -1) {
+    return res.json({ prevId: null, nextId: null, position: null, total: rows.length });
+  }
+
+  res.json({
+    prevId: index > 0 ? rows[index - 1].id : null,
+    nextId: index < rows.length - 1 ? rows[index + 1].id : null,
+    position: index + 1,
+    total: rows.length,
   });
 });
 
@@ -151,6 +174,9 @@ approvalsRouter.post("/:id/approve", async (req, res) => {
       action: "QUOTATION_APPROVED",
       detail: `Approved as ${step.role}`,
     });
+
+    // Approval is where the split is worked out. Nothing is reserved yet.
+    await suggestFulfilment(req.db, quotation.id);
 
     await notify(req.db, req.dbMode, {
       users: [quotation.rep],
