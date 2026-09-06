@@ -105,10 +105,15 @@ export default {
           "0%": { opacity: "0", transform: "translateY(-4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        slideIn: {
+          "0%": { opacity: "0", transform: "translateX(1.25rem)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
       },
       animation: {
         fadeUp: "fadeUp 0.35s ease-out both",
         expand: "expand 0.2s ease-out both",
+        slideIn: "slideIn 0.2s ease-out both",
       },
     },
   },
