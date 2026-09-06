@@ -558,6 +558,7 @@ async function createQuotation({ number, customer, rep, status, lines, activityA
       status,
       lastActivityAt: activityAt,
       createdAt: activityAt,
+      updatedAt: activityAt,
       // The customer got in touch a few days before the quotation was written.
       inquiryDate: new Date(activityAt.getTime() - 3 * 24 * 60 * 60 * 1000),
       ...extra,
@@ -957,10 +958,31 @@ const VOLUME_STATUSES = [
   { status: QUOTATION_STATUS.SENT, idle: 3 },
   { status: QUOTATION_STATUS.SENT, idle: 22 },
   { status: QUOTATION_STATUS.UNDER_NEGOTIATION, idle: 5 },
-  { status: QUOTATION_STATUS.CONFIRMED, idle: 18, confirmed: true },
-  { status: QUOTATION_STATUS.CANCELLED, idle: 40 },
-  { status: QUOTATION_STATUS.REJECTED, idle: 33 },
+  { status: QUOTATION_STATUS.CONFIRMED, confirmed: true },
+  { status: QUOTATION_STATUS.CONFIRMED, confirmed: true },
+  { status: QUOTATION_STATUS.CONFIRMED, confirmed: true },
+  { status: QUOTATION_STATUS.REJECTED },
+  { status: QUOTATION_STATUS.CANCELLED },
 ];
+
+const LOST_REASONS = [
+  "Budget withdrawn",
+  "Went with another supplier on price",
+  "Project postponed to next quarter",
+  "Scope changed — they will re-quote later",
+];
+
+// Closed volume deals are spread over ~five months. This month stays light;
+// dumping every loss on today is what made the chart jump.
+function volumeClosedDays(index) {
+  const roll = (index * 17 + (index % 5) * 3) % 100;
+  if (roll < 8) return 3 + (index % 4);
+  if (roll < 28) return 12 + (index % 18);
+  if (roll < 50) return 32 + (index % 22);
+  if (roll < 70) return 58 + (index % 22);
+  if (roll < 86) return 88 + (index % 20);
+  return 118 + (index % 28);
+}
 
 const VOLUME_BASKETS = [
   ["HW-MOUSE"],
@@ -986,7 +1008,13 @@ async function createVolumeBook({ namedCustomers, extraCustomers, users, product
     const rep = reps[index % reps.length];
     const skus = VOLUME_BASKETS[index % VOLUME_BASKETS.length];
     const discount = [0, 3, 5, 8, 12, 18][index % 6];
-    const activityAt = daysAgo(scenario.idle + (index % 8));
+    const closed =
+      scenario.status === QUOTATION_STATUS.CONFIRMED ||
+      scenario.status === QUOTATION_STATUS.CANCELLED ||
+      scenario.status === QUOTATION_STATUS.REJECTED;
+    const activityAt = closed
+      ? daysAgo(volumeClosedDays(index))
+      : daysAgo(scenario.idle + (index % 8));
     const extra = {};
 
     if (scenario.pending) extra.approvalPendingSince = activityAt;
@@ -995,7 +1023,7 @@ async function createVolumeBook({ namedCustomers, extraCustomers, users, product
       scenario.status === QUOTATION_STATUS.CANCELLED ||
       scenario.status === QUOTATION_STATUS.REJECTED
     ) {
-      extra.cancelReason = "Budget withdrawn";
+      extra.cancelReason = LOST_REASONS[index % LOST_REASONS.length];
     }
 
     const quotation = await createQuotation({
@@ -1257,7 +1285,11 @@ async function seedDemo() {
 // The quotation already sitting with a manager has the alerts it would have
 // raised, so the bell and the outbox both have something in them on first look.
 async function createPendingAlerts(users, waiting) {
-  const managers = [users["manager@dealflow360.test"], users["manager2@dealflow360.test"]];
+  const managers = [
+    users["manager@dealflow360.test"],
+    users["manager2@dealflow360.test"],
+    users["admin@dealflow360.test"],
+  ];
 
   for (const manager of managers) {
     await db.notification.create({
@@ -1281,6 +1313,27 @@ async function createPendingAlerts(users, waiting) {
       },
     });
   }
+
+  const admin = users["admin@dealflow360.test"];
+  await db.notification.createMany({
+    data: [
+      {
+        userId: admin.id,
+        type: "DEAL_ESCALATED",
+        title: `${waiting.number} was escalated`,
+        body: "Delta Systems · still waiting after a week",
+        quotationId: waiting.id,
+        createdAt: daysAgo(1),
+      },
+      {
+        userId: admin.id,
+        type: "PORTAL_REQUEST",
+        title: "New portal request",
+        body: "A customer asked for a quotation from the catalogue",
+        createdAt: daysAgo(0),
+      },
+    ],
+  });
 }
 
 async function main() {

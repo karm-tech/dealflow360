@@ -130,15 +130,25 @@ dashboardRouter.get("/", async (req, res) => {
       status: {
         in: [QUOTATION_STATUS.CONFIRMED, QUOTATION_STATUS.REJECTED, QUOTATION_STATUS.CANCELLED],
       },
-      updatedAt: { gte: since },
+      OR: [
+        { confirmedAt: { gte: since } },
+        { lastActivityAt: { gte: since } },
+        { updatedAt: { gte: since } },
+      ],
     },
-    select: { status: true, updatedAt: true, confirmedAt: true },
+    select: { status: true, updatedAt: true, confirmedAt: true, lastActivityAt: true },
   });
 
   const trend = months.map((key) => ({ month: key, label: monthLabel(key), won: 0, lost: 0 }));
 
   for (const quotation of decided) {
-    const key = monthKey(quotation.confirmedAt || quotation.updatedAt);
+    // A win has a confirm day. A loss never does, so the stall clock is the
+    // day it actually died — updatedAt is just when the row was last saved.
+    const closedAt =
+      quotation.status === QUOTATION_STATUS.CONFIRMED
+        ? quotation.confirmedAt || quotation.lastActivityAt || quotation.updatedAt
+        : quotation.lastActivityAt || quotation.updatedAt;
+    const key = monthKey(closedAt);
     const bucket = trend.find((entry) => entry.month === key);
     if (!bucket) continue;
 

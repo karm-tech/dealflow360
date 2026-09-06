@@ -35,39 +35,41 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <DemoRail />
+      {/* Chrome stays put so the top-right inbox cards have a stable offset. */}
+      <div className="sticky top-0 z-30">
+        <DemoRail />
 
-      <header className="border-b border-sand-200 bg-surface">
-        <div className="mx-auto flex max-w-7xl items-center gap-x-3 px-4 py-3">
-          <NavLink to={homePathFor(user.role)} aria-label="DealFlow360 home">
-            <Wordmark />
-          </NavLink>
+        <header className="border-b border-sand-200 bg-surface">
+          <div className="mx-auto flex max-w-7xl items-center gap-x-3 px-4 py-3">
+            <NavLink to={homePathFor(user.role)} aria-label="DealFlow360 home">
+              <Wordmark />
+            </NavLink>
 
-          {/* overflow-y must be set explicitly: with only overflow-x, the y axis
-              computes to auto and the active item's underline triggers a scrollbar. */}
-          <nav className="flex min-w-0 gap-0.5 overflow-x-auto overflow-y-hidden" aria-label="Main">
-            {visibleItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={navLinkClasses}>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+            {/* overflow-y must be set explicitly: with only overflow-x, the y axis
+                computes to auto and the active item's underline triggers a scrollbar. */}
+            <nav className="flex min-w-0 gap-0.5 overflow-x-auto overflow-y-hidden" aria-label="Main">
+              {visibleItems.map((item) => (
+                <NavLink key={item.to} to={item.to} className={navLinkClasses}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
 
-          <div className="ml-auto flex items-center gap-1.5">
-            {user.role === ROLES.ADMIN && (
-              <NavLink to="/backend" title="Products, price lists, ceilings and settings">
-                <Button variant="secondary" size="sm" icon={Settings}>
-                  Configuration
-                </Button>
-              </NavLink>
-            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              {user.role === ROLES.ADMIN && (
+                <NavLink to="/backend" title="Products, price lists, ceilings and settings">
+                  <Button variant="secondary" size="sm" icon={Settings}>
+                    Configuration
+                  </Button>
+                </NavLink>
+              )}
 
-            <NotificationBell />
-
-            <UserMenu />
+              <NotificationBell />
+              <UserMenu />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8">
         <Outlet />
