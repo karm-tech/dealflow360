@@ -84,7 +84,8 @@ npm run setup                 # migrate both databases and load their data
 npm run dev                   # API on :4000, app on :5173
 ```
 
-Open **http://localhost:5173**.
+Open **http://localhost:5173** for the public page. Sign in from there, or go
+straight to **`/login`** (live) or **`/demo`** (sample data).
 
 ### Admin login
 

@@ -225,7 +225,7 @@ dashboardRouter.get("/", async (req, res) => {
   res.json({
     scope: req.user.role === ROLES.SALES_REP ? "own" : "all",
     health: { counts: healthCounts, liveCount: scored.length },
-    alerts: alerts.slice(0, 12),
+    alerts,
     alertCount: alerts.length,
     pipeline,
     trend,

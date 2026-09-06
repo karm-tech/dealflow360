@@ -7,6 +7,7 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  ListPager,
   Spinner,
   StatusPill,
   Table,
@@ -20,6 +21,7 @@ import {
 import { RecordLink } from "../../components/RecordLink";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { pageFromSearch, paginate } from "../../lib/list";
 import { QUOTATION_STATUS_LABELS, QUOTATION_STATUS_TONES } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
 import { downloadExport, openPdf } from "../../lib/exports";
@@ -32,6 +34,15 @@ export function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const filters = filtersFromSearch(params);
   const query = filtersToParams(filters);
+  const page = pageFromSearch(params);
+  const productPage = pageFromSearch(params, "pp");
+
+  function setListPage(key, next) {
+    const nextParams = new URLSearchParams(params);
+    if (next <= 1) nextParams.delete(key);
+    else nextParams.set(key, String(next));
+    setParams(nextParams, { replace: true });
+  }
 
   const report = useQuery({
     queryKey: ["reports", query],
@@ -45,6 +56,8 @@ export function ReportsPage() {
 
   const data = report.data;
   const { kpis } = data;
+  const quoteWindow = paginate(data.quotations, page);
+  const productWindow = paginate(data.products, productPage);
 
   return (
     <div className="animate-fadeUp">
@@ -89,7 +102,7 @@ export function ReportsPage() {
         />
       </div>
 
-      {data.quotations.length === 0 ? (
+      {quoteWindow.total === 0 ? (
         <EmptyState title="No quotations match" hint="Widen the period or clear a filter." />
       ) : (
         <Card padded={false} className="mb-5">
@@ -105,7 +118,7 @@ export function ReportsPage() {
               </TR>
             </THead>
             <TBody>
-              {data.quotations.map((row) => (
+              {quoteWindow.rows.map((row) => (
                 <TR key={row.id}>
                   <TD>
                     <RecordLink to={`/quotations/${row.id}`}>{row.number}</RecordLink>
@@ -130,10 +143,13 @@ export function ReportsPage() {
               ))}
             </TBody>
           </Table>
+          <div className="px-6 pb-4">
+            <ListPager {...quoteWindow} onPage={(next) => setListPage("page", next)} />
+          </div>
         </Card>
       )}
 
-      {data.products.length > 0 && (
+      {productWindow.total > 0 && (
         <Card padded={false}>
           <div className="border-b border-sand-200 px-6 py-4">
             <h2 className="text-xl font-semibold text-sand-900">By product</h2>
@@ -151,7 +167,7 @@ export function ReportsPage() {
               </TR>
             </THead>
             <TBody>
-              {data.products.map((row) => (
+              {productWindow.rows.map((row) => (
                 <TR key={row.productId}>
                   <TD>
                     <RecordLink to={`/products/${row.productId}`}>{row.name}</RecordLink>
@@ -174,6 +190,9 @@ export function ReportsPage() {
               ))}
             </TBody>
           </Table>
+          <div className="px-6 pb-4">
+            <ListPager {...productWindow} onPage={(next) => setListPage("pp", next)} />
+          </div>
         </Card>
       )}
     </div>

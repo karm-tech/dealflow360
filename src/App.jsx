@@ -5,6 +5,7 @@ import { Layout } from "./components/Layout";
 import { PortalLayout } from "./components/PortalLayout";
 import { Spinner, ToastProvider } from "./components/ui";
 import { LoginPage } from "./features/auth/LoginPage";
+import { LandingPage } from "./features/auth/LandingPage";
 import { DemoPage } from "./features/auth/DemoPage";
 import { AccessRequestsPage } from "./features/admin/AccessRequestsPage";
 import { OutboxPage } from "./features/admin/OutboxPage";
@@ -42,12 +43,12 @@ import { homePathFor, ROLES } from "./lib/constants";
 
 const STAFF = [ROLES.ADMIN, ROLES.SALES_REP, ROLES.SALES_MANAGER, ROLES.FINANCE];
 
-// Sends each role to its home screen; customers never land in the workspace.
+// Guests see the public page. A signed-in session skips it and goes to its home.
 function HomeRedirect() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) return <Spinner label="Starting DealFlow360" />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <LandingPage />;
   return <Navigate to={homePathFor(user.role)} replace />;
 }
 

@@ -119,6 +119,19 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+
+  /* Soft navy wash behind the diamond lattice on / and the sign-in pages. */
+  .mark-wash {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 100% 0%, rgb(var(--color-ink-100) / 0.55), transparent 55%),
+      radial-gradient(ellipse 55% 45% at 0% 100%, rgb(var(--color-ink-50) / 0.85), transparent 50%);
+  }
+
+  .mark-lattice {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpolygon points='36,10 62,36 36,62 10,36' fill='none' stroke='%23B9CBDD' stroke-width='0.7' opacity='0.4'/%3E%3C/svg%3E");
+    background-size: 72px 72px;
+    opacity: 0.55;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
