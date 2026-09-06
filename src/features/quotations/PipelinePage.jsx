@@ -1,13 +1,17 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "../../components/PageHeader";
-import { Badge, ErrorState, Spinner } from "../../components/ui";
+import { Badge, ErrorState, ListPager, Spinner } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
+import { COLUMN_PAGE_SIZE, paginate } from "../../lib/list";
 import { PIPELINE_STAGES, QUOTATION_STATUS_LABELS } from "../../lib/constants";
 
 function Column({ stage, deals, onOpen }) {
-  const total = deals.reduce((sum, deal) => sum + deal.annualContractValue, 0);
+  const [page, setPage] = useState(1);
+  const totalValue = deals.reduce((sum, deal) => sum + deal.annualContractValue, 0);
+  const windowed = paginate(deals, page, COLUMN_PAGE_SIZE);
 
   return (
     <section className="flex w-72 shrink-0 flex-col rounded-xl border border-sand-200 bg-sand-50">
@@ -16,11 +20,11 @@ function Column({ stage, deals, onOpen }) {
           <h2 className="text-sm font-semibold text-sand-900">{QUOTATION_STATUS_LABELS[stage]}</h2>
           <span className="figure text-xs text-sand-600">{deals.length}</span>
         </div>
-        <p className="figure mt-0.5 text-xs text-sand-600">{formatMoney(total)}</p>
+        <p className="figure mt-0.5 text-xs text-sand-600">{formatMoney(totalValue)}</p>
       </header>
 
       <div className="flex flex-col gap-2 p-2">
-        {deals.map((deal) => (
+        {windowed.rows.map((deal) => (
           <button
             key={deal.id}
             type="button"
@@ -44,6 +48,17 @@ function Column({ stage, deals, onOpen }) {
           <p className="px-1 py-6 text-center text-xs text-sand-500">Nothing at this stage.</p>
         )}
       </div>
+
+      {windowed.total > COLUMN_PAGE_SIZE && (
+        <div className="border-t border-sand-200 px-2 py-2">
+          <ListPager
+            {...windowed}
+            pageSize={COLUMN_PAGE_SIZE}
+            compact
+            onPage={setPage}
+          />
+        </div>
+      )}
     </section>
   );
 }

@@ -23,6 +23,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  ListPager,
   Modal,
   Spinner,
   StatusPill,
@@ -31,6 +32,7 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatMoney, daysSince } from "../../lib/format";
+import { CARD_PAGE_SIZE, pageFromSearch, paginate } from "../../lib/list";
 import { CUSTOMER_BAND_TONES, QUOTATION_STATUS_LABELS } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
 import { TierSuggestions } from "./TierSuggestions";
@@ -150,6 +152,14 @@ export function DashboardPage() {
   const [params, setParams] = useSearchParams();
   const filters = filtersFromSearch(params);
   const filterQuery = filtersToParams(filters);
+  const alertPage = pageFromSearch(params);
+
+  function setAlertPage(next) {
+    const nextParams = new URLSearchParams(params);
+    if (next <= 1) nextParams.delete("page");
+    else nextParams.set("page", String(next));
+    setParams(nextParams, { replace: true });
+  }
   const [nudging, setNudging] = useState(null);
   const [escalating, setEscalating] = useState(null);
 
@@ -190,6 +200,7 @@ export function DashboardPage() {
   const data = dashboard.data;
   const { counts } = data.health;
   const needsAttention = counts.AT_RISK + counts.CRITICAL;
+  const alertWindow = paginate(data.alerts, alertPage, CARD_PAGE_SIZE);
 
   const pipeline = PIPELINE_ORDER.map((status) => ({
     stage: QUOTATION_STATUS_LABELS[status],
@@ -293,32 +304,32 @@ export function DashboardPage() {
               <CardHeader
                 title="Needs attention"
                 subtitle="Worst first, with the reason for every point lost."
-                actions={
-                  data.alertCount > data.alerts.length ? (
-                    <StatusPill tone="neutral">
-                      showing {data.alerts.length} of {data.alertCount}
-                    </StatusPill>
-                  ) : null
-                }
               />
             </div>
 
             <div className="space-y-3 px-6 pb-6">
-              {data.alerts.length === 0 ? (
+              {alertWindow.total === 0 ? (
                 <EmptyState
                   title="Nothing is going wrong"
                   hint="Every open deal is scoring 75 or better. Alerts appear here as soon as one slips."
                 />
               ) : (
-                data.alerts.map((alert) => (
-                  <AlertCard
-                    key={alert.id}
-                    alert={alert}
-                    canNudge={alert.repId !== user?.id}
-                    onNudge={setNudging}
-                    onEscalate={setEscalating}
+                <>
+                  {alertWindow.rows.map((alert) => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      canNudge={alert.repId !== user?.id}
+                      onNudge={setNudging}
+                      onEscalate={setEscalating}
+                    />
+                  ))}
+                  <ListPager
+                    {...alertWindow}
+                    pageSize={CARD_PAGE_SIZE}
+                    onPage={setAlertPage}
                   />
-                ))
+                </>
               )}
             </div>
           </Card>

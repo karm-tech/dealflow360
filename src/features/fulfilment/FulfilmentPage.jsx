@@ -19,7 +19,7 @@ import {
 } from "../../components/ui";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
-import { pageFromSearch, paginate } from "../../lib/list";
+import { SHORT_PAGE_SIZE, pageFromSearch, paginate } from "../../lib/list";
 import { FULFILMENT_STATUS_LABELS, FULFILMENT_STATUS_TONES, ROLES } from "../../lib/constants";
 import { useAuth } from "../../app/AuthProvider";
 import { StockReceiptModal } from "./StockReceiptModal";
@@ -47,7 +47,7 @@ export function FulfilmentPage() {
 
   const { parcels, consolidatableIds } = fulfilment.data;
   const ready = new Set(consolidatableIds);
-  const windowed = paginate(parcels, page);
+  const windowed = paginate(parcels, page, SHORT_PAGE_SIZE);
 
   return (
     <div className="animate-fadeUp">
@@ -131,6 +131,7 @@ export function FulfilmentPage() {
         </Table>
         <ListPager
           {...windowed}
+          pageSize={SHORT_PAGE_SIZE}
           onPage={(next) => {
             const nextParams = new URLSearchParams(params);
             if (next <= 1) nextParams.delete("page");

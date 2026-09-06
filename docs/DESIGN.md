@@ -140,6 +140,7 @@ Pick from these and nothing else.
 
 | Class | Size | Used for |
 |---|---|---|
+| `text-4xl` | 40px | landing headline only |
 | `text-3xl` | 32px | display, used almost never |
 | `text-2xl` | 24px | page title (`PageHeader`) |
 | `text-xl` | 18px | section / card heading |
@@ -235,3 +236,7 @@ menus hidden, and it should not feel like one.
 
 **Active nav is underlined, not filled.** Seven filled pills in a row would
 fight the page content for attention.
+
+**`/` and the sign-in pages share one ground.** The wordmark diamond is tiled
+and washed behind the content (`MarkGround`). The login and demo forms stay
+the same cards they already were; only the page behind them is drawn.

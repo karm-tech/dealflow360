@@ -23,7 +23,7 @@ import {
 import { useAuth } from "../../app/AuthProvider";
 import { api, errorMessage } from "../../lib/api";
 import { formatDate, formatMoney } from "../../lib/format";
-import { pageFromSearch, paginate } from "../../lib/list";
+import { SHORT_PAGE_SIZE, pageFromSearch, paginate } from "../../lib/list";
 import { downloadExport } from "../../lib/exports";
 import {
   INVOICE_STATUS_LABELS,
@@ -96,7 +96,7 @@ export function BillingPage() {
     return <ErrorState message={errorMessage(billing.error)} onRetry={billing.refetch} />;
   }
 
-  const windowed = paginate(billing.data, page);
+  const windowed = paginate(billing.data, page, SHORT_PAGE_SIZE);
   const rows = windowed.rows;
   // Carried onto the record so its pager walks this list rather than all of it.
   const listParams = params.toString();
@@ -211,7 +211,11 @@ export function BillingPage() {
               onOpen={(id) => navigate(`/billing/subscriptions/${id}?${listParams}`)}
             />
           )}
-          <ListPager {...windowed} onPage={(next) => setParam("page", String(next))} />
+          <ListPager
+            {...windowed}
+            pageSize={SHORT_PAGE_SIZE}
+            onPage={(next) => setParam("page", String(next))}
+          />
         </>
       )}
     </div>

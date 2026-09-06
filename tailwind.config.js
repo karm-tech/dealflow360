@@ -86,6 +86,7 @@ export default {
         xl: ["1.125rem", { lineHeight: "1.6rem" }], // 18px section heading
         "2xl": ["1.5rem", { lineHeight: "1.9rem", letterSpacing: "-0.01em" }], // 24px page title
         "3xl": ["2rem", { lineHeight: "2.3rem", letterSpacing: "-0.02em" }], // 32px display
+        "4xl": ["2.5rem", { lineHeight: "2.85rem", letterSpacing: "-0.025em" }], // 40px landing headline
       },
 
       // Spent by role: card is the default, raised floats, modal for dialogs.
